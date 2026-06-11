@@ -63,14 +63,14 @@ node 级配置进 `ctx.config`（`config.<nodeName>` 节）；preset 级配置�
 
 | 语法 | 形式 | 状态 | 建议 stage |
 |------|------|------|-----------|
-| 内部链接 | `[[Link]]` | ✅ wikilink | before |
+| 内部链接 | `[[Link]]`、`[[#标题]]` | ✅ wikilink | before |
 | 注释 | `%%Text%%`（行内与跨行） | ✅ comment | before |
 | Mermaid 图表 | ` ```mermaid ` 块 | ✅ mermaid | before |
 | Callout | `> [!note]` | ✅ callout（默认关闭） | after |
 | 残留 .md 链接 | `[x](a.md)` / `href="a.md"` | ✅ mdlink | after |
-| 高亮 | `==Text==` | ⬜ | before |
-| 文件/笔记嵌入 | `![[Link]]` | ⬜ | before |
-| 块引用 | `![[Link#^id]]` | ⬜ | before |
-| 块定义 | `^id` | ⬜ | before |
+| 高亮 | `==Text==` | ✅ highlight | before |
+| 文件/笔记嵌入 | `![[img.png\|300]]`、`![[笔记]]` | ✅ embed（图片 + 笔记→链接；pdf/音视频原样保留） | before |
+| 块引用 | `[[Link#^id]]` | ✅ wikilink（锚点降级为文章链接） | before |
+| 块定义 | `^id` | ✅ blockid（剥离） | before |
 | 脚注 | `[^id]` | ⬜（渲染器配置可能已覆盖） | — |
 | 删除线 / 任务列表 / 表格 | `~~ ~~` / `- [ ]` | 无需处理（marked 原生支持） | — |

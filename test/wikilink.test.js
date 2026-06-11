@@ -58,6 +58,25 @@ test('does not replace wiki links inside fenced code and inline code', () => {
   );
 });
 
+test('leaves embeds (![[...]]) to the embed node, drops block-ref anchors, links same-page headings', () => {
+  const index = {
+    byTitle: new Map([['hello hexo', { abbrlink: 'abcd1234' }]]),
+    bySlug: new Map(),
+    bySourcePath: new Map(),
+    bySourceBase: new Map()
+  };
+  const replacer = wikilink._internal.createWikiLinkReplacer(index, '');
+
+  // ![[...]] 不是 wikilink 的事
+  assert.equal(replacer('![[Hello Hexo]]'), '![[Hello Hexo]]');
+  // 块引用锚点丢弃，保留文章链接
+  assert.equal(replacer('[[Hello Hexo#^block-id]]'), '[Hello Hexo](/posts/abcd1234)');
+  // 同页标题链接
+  assert.equal(replacer('[[#Section A|jump]]'), '[jump](#Section%20A)');
+  // 同页块引用无法表达，原样保留
+  assert.equal(replacer('[[#^block]]'), '[[#^block]]');
+});
+
 test('matches obsidian links containing folder path and markdown extension', () => {
   const ctx = createHexoMock({
     config: { text_pipeline: { presets: ['obsidian'] } },

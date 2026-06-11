@@ -122,7 +122,10 @@ text_pipeline:
 | Node | 语法 | 默认 | 行为 |
 |------|------|------|------|
 | `comment` | `%%行内%%`、跨行 `%% … %%` | 开 | 渲染前剥离（代码内为字面量） |
-| `wikilink` | `[[目标#锚点\|别名]]` | 开 | 重写为文章永久链接（`abbrlink` 优先，回退 `post.path`） |
+| `embed` | `![[图片.png\|300]]`、`![[笔记]]` | 开 | 图片 → markdown 图片 / `<img width>`（`asset_prefix` 配置）；可解析的笔记嵌入 → 链接；其他原样保留 |
+| `wikilink` | `[[目标#锚点\|别名]]`、`[[#标题]]` | 开 | 重写为文章永久链接（`abbrlink` 优先，回退 `post.path`）；同页标题 → `#锚点`；块引用锚点（`#^id`）降级为文章链接 |
+| `highlight` | `==文本==` | 开 | `<mark>文本</mark>` |
+| `blockid` | 行尾 `^block-id` | 开 | 剥离（Obsidian 阅读视图里同样不可见） |
 | `mdlink` | HTML 里残留的 `.md` 链接 | 开 | 兜底重写为文章永久链接 |
 | `mermaid` | ` ```mermaid ` 围栏块 | 开 | 换成 `<pre class="mermaid">` 绕开语法高亮；按需注入懒加载 CDN 脚本 |
 | `callout` | `> [!type] 标题` | **关** | `<div class="callout callout-type">`；主流渲染器/主题已多自带支持，所以默认关 |
@@ -131,8 +134,9 @@ text_pipeline:
 presets:
   - name: obsidian
     config:
-      domain_prefix: ''                  # wikilink/mdlink 的链接前缀
+      domain_prefix: ''                  # wikilink/mdlink/embed 的链接前缀
       callout: { enable: true }          # 按需打开
+      embed: { asset_prefix: /images }   # 嵌入图片路径的前缀
       mermaid: { theme: dark, priority: 15 }   # 任意 node：子配置 + priority 覆盖
 ```
 

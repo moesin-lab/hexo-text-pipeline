@@ -122,7 +122,10 @@ Compiles Obsidian Flavored Markdown for Hexo. Enable with `presets: [obsidian]`.
 | Node | Syntax | Default | Behavior |
 |------|--------|---------|----------|
 | `comment` | `%%inline%%`, multi-line `%% … %%` | on | Stripped before rendering (literal inside code) |
-| `wikilink` | `[[target#anchor\|alias]]` | on | Rewritten to the post's permalink (`abbrlink` first, `post.path` fallback) |
+| `embed` | `![[image.png\|300]]`, `![[Note]]` | on | Images → markdown image / `<img width>` (`asset_prefix` config); resolvable note embeds → link; others untouched |
+| `wikilink` | `[[target#anchor\|alias]]`, `[[#heading]]` | on | Rewritten to the post's permalink (`abbrlink` first, `post.path` fallback); same-page headings → `#anchor`; block-ref anchors (`#^id`) degrade to the post link |
+| `highlight` | `==text==` | on | `<mark>text</mark>` |
+| `blockid` | trailing `^block-id` | on | Stripped (invisible in Obsidian reading view too) |
 | `mdlink` | Leftover `.md` links in HTML | on | Fallback rewrite to the post's permalink |
 | `mermaid` | ` ```mermaid ` fenced blocks | on | Swapped to `<pre class="mermaid">` so highlighters don't eat the diagram; lazy CDN loader injected |
 | `callout` | `> [!type] Title` | **off** | `<div class="callout callout-type">`; off because most renderers/themes already support callouts |
@@ -131,8 +134,9 @@ Compiles Obsidian Flavored Markdown for Hexo. Enable with `presets: [obsidian]`.
 presets:
   - name: obsidian
     config:
-      domain_prefix: ''                  # link prefix for wikilink/mdlink
+      domain_prefix: ''                  # link prefix for wikilink/mdlink/embed
       callout: { enable: true }          # opt in
+      embed: { asset_prefix: /images }   # prepended to embedded image paths
       mermaid: { theme: dark, priority: 15 }   # any node: sub-config + priority override
 ```
 

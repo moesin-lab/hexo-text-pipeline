@@ -63,14 +63,14 @@ Per-node config arrives as `ctx.config` (the `config.<nodeName>` section); prese
 
 | Syntax | Form | Status | Suggested stage |
 |--------|------|--------|-----------------|
-| Internal links | `[[Link]]` | ✅ wikilink | before |
+| Internal links | `[[Link]]`, `[[#heading]]` | ✅ wikilink | before |
 | Comments | `%%Text%%` (inline & multi-line) | ✅ comment | before |
 | Mermaid diagrams | ` ```mermaid ` block | ✅ mermaid | before |
 | Callouts | `> [!note]` | ✅ callout (off by default) | after |
 | Leftover .md links | `[x](a.md)` / `href="a.md"` | ✅ mdlink | after |
-| Highlight | `==Text==` | ⬜ | before |
-| File/note embeds | `![[Link]]` | ⬜ | before |
-| Block references | `![[Link#^id]]` | ⬜ | before |
-| Block definitions | `^id` | ⬜ | before |
+| Highlight | `==Text==` | ✅ highlight | before |
+| File/note embeds | `![[img.png\|300]]`, `![[Note]]` | ✅ embed (images + note→link; pdf/audio untouched) | before |
+| Block references | `[[Link#^id]]` | ✅ wikilink (anchor degrades to the post link) | before |
+| Block definitions | `^id` | ✅ blockid (stripped) | before |
 | Footnotes | `[^id]` | ⬜ (renderer config may already cover this) | — |
 | Strikethrough / task lists / tables | `~~ ~~` / `- [ ]` | Nothing to do (marked supports these natively) | — |
