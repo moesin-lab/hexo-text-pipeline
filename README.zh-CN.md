@@ -50,6 +50,7 @@ hooks:
     name: furigana              # 可选，日志标识
     priority: 20                # 可选，默认 10，小者先跑
     timeout: 10000              # 可选，毫秒
+    match: '\\{furigana'        # 可选正则：文本不命中直接跳过（command 可省一次 spawn）
 ```
 
 **3. 程序化注册** —— 其他插件（或站点 `scripts/` 目录里的脚本）可以直接注册 node：
@@ -76,6 +77,31 @@ hexo.textPipeline.register({
 3. **`hexo pipeline` 诊断命令**——打印每个 stage 解析后的 node 顺序（priority + 来源）和全部检查结果，冲突在部署前就能看见。
 
 默认策略是 warn-and-skip：构建永远不会因为一个坏 hook 失败。`strict: true`（给 CI 用）则把配置错误和节点失败变成构建失败。
+
+## 开发 hook（调试模式）
+
+两个工具回答"我的 hook 在这个 stage 到底收到什么"：
+
+**`hexo pipeline --dry-run source/_posts/x.md`**——对单个文件跑 `before_post_render` 链，逐 node 打印效果（跳过 / 无变化 / 变更行级 diff / 失败），不生成任何东西。
+
+**tap（管线抽头）**——在真实 `hexo generate` / `hexo s` 过程中，把每个 stage 流过的文本落盘成快照：
+
+```yaml
+text_pipeline:
+  tap:
+    enable: true
+    match: my-post        # 强烈建议设置：只抓匹配的文章/页面
+    dir: .text-pipeline-tap
+```
+
+```
+.text-pipeline-tap/_posts_my-post.md/after_post_render/
+├── 00-input.txt              ← 挂在该 stage 的 hook 收到的就是这个
+├── 01-obsidian_mdlink.txt    ← 每个改动了文本的 node 改完后的样子
+└── 02-hook_my-hook.txt       ← 最后一个文件即该 stage 的最终输出
+```
+
+每轮渲染替换上一轮快照。tap 目录记得加进 `.gitignore`，正常构建时关掉 `enable`。
 
 ## 内置 preset：`obsidian`
 
@@ -114,7 +140,11 @@ text_pipeline:
   inject_css: true   # node 的默认样式（如 callout）
   inject_js: true    # node 的前端脚本（如 mermaid 加载器）
   presets: []        # 内置名 | npm 包 | ./本地路径 | { name, config }
-  hooks: []          # { script | command, stage, priority, name, timeout, enable }
+  hooks: []          # { script | command, stage, priority, name, timeout, match, enable }
+  tap:               # 调试模式：落盘每个 stage 的文本快照（见"开发 hook"）
+    enable: false
+    match: ''
+    dir: .text-pipeline-tap
 ```
 
 ## 开发

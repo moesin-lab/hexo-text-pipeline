@@ -10,7 +10,7 @@ const plugin = require('../index');
 const { createHexoMock } = require('./helpers/mock-hexo');
 const { checkPluginConfig, checkNodes } = require('../lib/core/checker/static');
 const { createRuntimeGuard, FAILURE_TRIP_THRESHOLD } = require('../lib/core/checker/runtime');
-const { formatReport } = require('../lib/core/console/pipeline');
+const { formatReport, formatDryRun } = require('../lib/core/console/pipeline');
 
 // 用 node -e 保证跨平台：stdin 进，stdout 出
 const upperCommand = 'node -e "let d=\'\';process.stdin.on(\'data\',c=>d+=c).on(\'end\',()=>process.stdout.write(d.toUpperCase()))"';
@@ -75,6 +75,44 @@ test('a hook can take over the full page via after_render:html', () => {
   plugin(ctx.hexo);
   const handler = ctx.handlers.get('after_render:html');
   assert.equal(handler('<html>hi</html>', { path: 'index.html' }), '<HTML>HI</HTML>');
+});
+
+test('match regex gates a hook: no spawn when the text does not match', () => {
+  const failIfRun = 'node -e "process.exit(1)"'; // 一旦执行必失败，借此证明没执行
+  const ctx = createHexoMock({
+    config: {
+      text_pipeline: { hooks: [{ command: failIfRun, name: 'gated', match: 'NEEDLE' }] }
+    }
+  });
+
+  plugin(ctx.hexo);
+  const handler = ctx.handlers.get('before_post_render');
+  assert.equal(handler({ content: 'plain text' }).content, 'plain text');
+  assert.equal(ctx.warnings.length, 0); // 没命中 → 没执行 → 没失败告警
+
+  handler({ content: 'has NEEDLE here' });
+  assert.ok(ctx.warnings.some((w) => w.includes('failed'))); // 命中 → 执行（并如期失败）
+});
+
+test('script hook reloads its local helper modules too', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'htp-helper-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'helper.js'), 'module.exports = "h1";');
+    fs.writeFileSync(path.join(dir, 'entry.js'), 'const h = require("./helper");\nmodule.exports = (t) => t + "|" + h;');
+
+    const ctx = createHexoMock({
+      config: { text_pipeline: { hooks: [{ script: 'entry.js' }] } },
+      baseDir: dir
+    });
+    plugin(ctx.hexo);
+    const handler = ctx.handlers.get('before_post_render');
+    assert.equal(handler({ content: 'a' }).content, 'a|h1');
+
+    fs.writeFileSync(path.join(dir, 'helper.js'), 'module.exports = "h2";');
+    assert.equal(handler({ content: 'a' }).content, 'a|h2');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // ---- 执行顺序：priority ----
@@ -253,7 +291,105 @@ test('shared priority across sources is info-level: visible in doctor, no build 
   assert.ok(ctx.hexo._textPipeline.issues.some((i) => i.level === 'info' && i.message.includes('share priority')));
 });
 
+// ---- tap 调试模式 ----
+
+test('tap dumps each stage input and per-node snapshots for hook development', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'htp-tap-'));
+  try {
+    const ctx = createHexoMock({
+      config: {
+        text_pipeline: {
+          presets: ['obsidian'],
+          tap: { enable: true, dir: 'tap-out' }
+        }
+      },
+      baseDir: dir
+    });
+    plugin(ctx.hexo);
+    ctx.handlers.get('before_generate')();
+
+    ctx.handlers.get('before_post_render')({
+      content: 'hello %%secret%% world',
+      source: '_posts/my-post.md'
+    });
+
+    const stageDir = path.join(dir, 'tap-out', '_posts_my-post.md', 'before_post_render');
+    const files = fs.readdirSync(stageDir).sort();
+    assert.deepEqual(files, ['00-input.txt', '01-obsidian_comment.txt']);
+    assert.equal(fs.readFileSync(path.join(stageDir, '00-input.txt'), 'utf8'), 'hello %%secret%% world');
+    assert.equal(fs.readFileSync(path.join(stageDir, '01-obsidian_comment.txt'), 'utf8'), 'hello  world');
+
+    // 第二轮渲染：上一轮快照被替换而非追加
+    ctx.handlers.get('before_post_render')({
+      content: 'second run',
+      source: '_posts/my-post.md'
+    });
+    assert.deepEqual(fs.readdirSync(stageDir).sort(), ['00-input.txt']);
+    assert.equal(fs.readFileSync(path.join(stageDir, '00-input.txt'), 'utf8'), 'second run');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('tap match filter limits snapshots to matching sources', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'htp-tapm-'));
+  try {
+    const ctx = createHexoMock({
+      config: {
+        text_pipeline: {
+          presets: ['obsidian'],
+          tap: { enable: true, dir: 'tap-out', match: 'wanted' }
+        }
+      },
+      baseDir: dir
+    });
+    plugin(ctx.hexo);
+    ctx.handlers.get('before_generate')();
+
+    const handler = ctx.handlers.get('before_post_render');
+    handler({ content: 'a %%x%%', source: '_posts/wanted.md' });
+    handler({ content: 'b %%y%%', source: '_posts/other.md' });
+
+    const entries = fs.readdirSync(path.join(dir, 'tap-out'));
+    assert.deepEqual(entries, ['_posts_wanted.md']);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // ---- doctor ----
+
+test('dry-run traces a file through before_post_render node by node', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'htp-dry-'));
+  try {
+    fs.writeFileSync(
+      path.join(dir, 'sample.md'),
+      ['---', 'title: Sample', '---', 'hello %%secret%% world', '', '```mermaid', 'graph TD', '```'].join('\n')
+    );
+
+    const ctx = createHexoMock({
+      config: { text_pipeline: { presets: ['obsidian'] } },
+      baseDir: dir
+    });
+    plugin(ctx.hexo);
+    ctx.handlers.get('before_generate')();
+
+    const report = formatDryRun(ctx.hexo, ctx.hexo._textPipeline, 'sample.md');
+    assert.ok(report.includes('✓ obsidian:comment: changed'));
+    assert.ok(report.includes('- hello %%secret%% world'));
+    assert.ok(report.includes('✓ obsidian:mermaid: changed'));
+    assert.ok(report.includes('<pre class="mermaid">'));
+    assert.ok(report.includes('obsidian:wikilink: skipped (test)'));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('hexo pipeline command is available even when the plugin is disabled', () => {
+  const ctx = createHexoMock({ config: { text_pipeline: { enable: false } } });
+  plugin(ctx.hexo);
+  assert.ok(ctx.consoleCommands.has('pipeline'));
+});
 
 test('hexo pipeline command reports node order and check results', () => {
   const ctx = createHexoMock({

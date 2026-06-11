@@ -50,6 +50,7 @@ hooks:
     name: furigana              # optional, for logs
     priority: 20                # optional, default 10, lower runs first
     timeout: 10000              # optional, ms
+    match: '\\{furigana'        # optional regex: skip the hook (and the spawn) when the text doesn't match
 ```
 
 **3. Programmatic** — other plugins (or a script in your site's `scripts/` dir) can register nodes directly:
@@ -76,6 +77,31 @@ Within a stage, nodes run by ascending `priority` (default 10), ties broken by r
 3. **`hexo pipeline`** — prints every stage's resolved node order (priority + source) plus all check results, so conflicts are visible before you deploy.
 
 Default policy is warn-and-skip: your build never breaks because of one bad hook. Set `strict: true` (for CI) to turn config errors and node failures into build failures.
+
+## Developing hooks (debug mode)
+
+Two tools answer "what does my hook actually receive at this stage?":
+
+**`hexo pipeline --dry-run source/_posts/x.md`** — runs the `before_post_render` chain on one file, printing each node's effect as a line diff (skipped / no change / changed / FAILED), without generating anything.
+
+**tap** — during a real `hexo generate` / `hexo s`, dumps the text flowing through every stage to snapshot files:
+
+```yaml
+text_pipeline:
+  tap:
+    enable: true
+    match: my-post        # strongly recommended: only capture matching sources/paths
+    dir: .text-pipeline-tap
+```
+
+```
+.text-pipeline-tap/_posts_my-post.md/after_post_render/
+├── 00-input.txt              ← exactly what a hook on this stage receives
+├── 01-obsidian_mdlink.txt    ← text after each node that changed it
+└── 02-hook_my-hook.txt       ← the last file is the stage's final output
+```
+
+Each render cycle replaces the previous snapshot. Add the tap dir to `.gitignore` and turn `enable` off for normal builds.
 
 ## Built-in preset: `obsidian`
 
@@ -114,7 +140,11 @@ text_pipeline:
   inject_css: true   # nodes' default styles (e.g. callout)
   inject_js: true    # nodes' frontend scripts (e.g. mermaid loader)
   presets: []        # built-in name | npm package | ./local/path | { name, config }
-  hooks: []          # { script | command, stage, priority, name, timeout, enable }
+  hooks: []          # { script | command, stage, priority, name, timeout, match, enable }
+  tap:               # debug mode: dump per-stage text snapshots (see "Developing hooks")
+    enable: false
+    match: ''
+    dir: .text-pipeline-tap
 ```
 
 ## Development
