@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const mermaid = require('../lib/converters/mermaid');
+const mermaid = require('../lib/presets/obsidian/converters/mermaid');
 
 const convert = (md, config = {}) => mermaid.convert(md, { config });
 

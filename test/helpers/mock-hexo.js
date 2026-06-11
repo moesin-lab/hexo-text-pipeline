@@ -7,9 +7,12 @@ function createHexoMock(options = {}) {
   let postsGetCount = 0;
   const handlers = new Map();
   const injected = [];
+  const consoleCommands = new Map();
+  const warnings = [];
 
   const hexo = {
     config,
+    base_dir: options.baseDir,
     locals: {
       get(name) {
         if (name === 'posts') {
@@ -33,11 +36,18 @@ function createHexoMock(options = {}) {
         register(entry, value) {
           injected.push({ entry, value });
         }
+      },
+      console: {
+        register(name, desc, opts, fn) {
+          consoleCommands.set(name, fn);
+        }
       }
     },
     log: {
       info() {},
-      warn() {}
+      warn(message) {
+        warnings.push(message);
+      }
     }
   };
 
@@ -45,6 +55,8 @@ function createHexoMock(options = {}) {
     hexo,
     handlers,
     injected,
+    consoleCommands,
+    warnings,
     getPostsGetCount() {
       return postsGetCount;
     }

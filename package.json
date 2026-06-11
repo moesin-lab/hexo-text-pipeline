@@ -1,7 +1,7 @@
 {
-  "name": "hexo-obsidian-compiler",
-  "version": "0.1.0",
-  "description": "A text-transform bus for Hexo's render pipeline: built-in Obsidian Flavored Markdown converters (wiki links, comments, mermaid, callouts) plus user hooks that hand any render stage to your own scripts, text in / text out.",
+  "name": "hexo-text-pipeline",
+  "version": "0.2.0",
+  "description": "A general-purpose hooks bus for Hexo's render pipeline: hang your own scripts/commands on any text stage (text in, text out, edit-and-use), with a checker system as the safety net. Ships an Obsidian Flavored Markdown preset.",
   "main": "index.js",
   "files": [
     "index.js",
@@ -16,23 +16,24 @@
   "keywords": [
     "hexo",
     "hexo-plugin",
+    "hooks",
+    "pipeline",
+    "text-transform",
     "obsidian",
-    "callout",
+    "obsidian-flavored-markdown",
     "wikilink",
     "mermaid",
-    "obsidian-flavored-markdown",
-    "hooks",
-    "pipeline"
+    "callout"
   ],
   "author": "Sentixxx",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/moesin-lab/hexo-obsidian-compiler.git"
+    "url": "https://github.com/moesin-lab/hexo-text-pipeline.git"
   },
-  "homepage": "https://github.com/moesin-lab/hexo-obsidian-compiler#readme",
+  "homepage": "https://github.com/moesin-lab/hexo-text-pipeline#readme",
   "bugs": {
-    "url": "https://github.com/moesin-lab/hexo-obsidian-compiler/issues"
+    "url": "https://github.com/moesin-lab/hexo-text-pipeline/issues"
   },
   "engines": {
     "node": ">=16"

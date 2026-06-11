@@ -11,7 +11,7 @@ const ENCODED_MD_HREF =
 
 function setupHexo(source) {
   const ctx = createHexoMock({
-    config: { obsidian_compiler: {} },
+    config: { text_pipeline: { presets: ['obsidian'] } },
     posts: [
       {
         title: '记一次个人博客安装配置',

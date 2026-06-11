@@ -1,10 +1,9 @@
 'use strict';
 
 const engine = require('./lib/core/engine');
-const registry = require('./lib/converters/registry');
 
 function register(hexo) {
-  engine.register(hexo, registry);
+  engine.register(hexo);
 }
 
 const runtimeHexo =

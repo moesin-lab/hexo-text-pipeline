@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const comment = require('../lib/converters/comment');
+const comment = require('../lib/presets/obsidian/converters/comment');
 
 const convert = (md) => comment.convert(md, {});
 

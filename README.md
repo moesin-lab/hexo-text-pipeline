@@ -1,61 +1,26 @@
 **English** | [简体中文](README.zh-CN.md)
 
-# hexo-obsidian-compiler
+# hexo-text-pipeline
 
-A text-transform bus for Hexo's render pipeline, shipped with built-in converters for Obsidian Flavored Markdown.
+A general-purpose hooks bus for Hexo's render pipeline.
 
-Two things in one plugin:
+Every text-in/text-out point of Hexo's rendering process is exposed as a stage. You hang things on stages — your own scripts, shell commands, or packaged presets — through plain declarative config. A checker system backstops everything: misconfiguration is caught before the first post renders, and a failing node is skipped, never your build.
 
-1. **Built-in converters** that compile Obsidian syntax (wiki links, comments, mermaid, callouts, …) into Hexo-friendly output.
-2. **User hooks** that expose every text-in/text-out point of Hexo's render pipeline to your own scripts — declare a shell command or a local JS file in `_config.yml` and take over any stage. Edit the script, re-render, done: no plugin to write, no restart needed.
-
-The design goal: most of what a small Hexo plugin does is "transform some text at some point of the pipeline". You shouldn't need to publish a plugin for that — a script plus one line of config should be enough.
-
-This is the evolution of [hexo-obsidian-link-converter](https://github.com/Sentixxx/hexo-obsidian-link-converter); wiki link conversion is merged in as a converter.
-
-## Built-in converters
-
-| Converter | Syntax | Default | Behavior |
-|-----------|--------|---------|----------|
-| `comment` | `%%inline%%` and multi-line `%% … %%` | on | Stripped before markdown rendering (literal inside code) |
-| `wikilink` | `[[target#anchor\|alias]]` | on | Rewritten as a markdown link pointing to the post's permalink |
-| `mdlink` | Leftover `.md` links after rendering | on | Fallback rewrite to the post's permalink |
-| `mermaid` | ` ```mermaid ` fenced blocks | on | Replaced with `<pre class="mermaid">` so syntax highlighters don't eat the diagram; a loader script (CDN, lazy) is injected unless disabled |
-| `callout` | `> [!type] Title` + quoted body | **off** | Rendered as `<div class="callout callout-type">`; most modern renderers/themes already support callouts, so this stays off unless you enable it |
-
-Link target resolution matches by title / slug / source path. The `abbrlink` frontmatter field takes priority (→ `/posts/<abbrlink>`); posts without `abbrlink` fall back to the Hexo-generated `post.path`. Unresolvable links are left untouched.
-
-## Installation
-
-```bash
-npm install hexo-obsidian-compiler --save
-```
-
-## Configuration (`_config.yml`, everything optional)
+The design goal: most of what a small Hexo plugin does is "transform some text at some point of the pipeline". That shouldn't require writing and publishing a plugin — a script plus one line of config should be enough, and editing the script should take effect on the next render with no restart.
 
 ```yaml
-obsidian_compiler:
-  enable: true          # master switch
-  debug: false          # verbose logging
-  inject_css: true      # inject default callout styles
-  inject_js: true       # inject the mermaid loader script
-  domain_prefix: ''     # link prefix, e.g. https://example.com/blog
-  converters:
-    callout:
-      enable: true      # callout is off by default; opt in here
-    mermaid:
-      theme: default    # mermaid theme passed to mermaid.initialize
-      script_src: ''    # override the CDN URL; inject_script: false to bring your own
-  hooks:                # take over the pipeline with your own scripts ↓
-    - command: python scripts/furigana.py
-      stage: before_post_render
-    - script: scripts/lazy-img.js
+text_pipeline:
+  presets:
+    - obsidian                       # packaged node sets ("plugins of the plugin")
+  hooks:
+    - script: scripts/lazy-img.js    # your JS: module.exports = (text, ctx) => text
       stage: after_post_render
+    - command: python scripts/furigana.py   # any language: stdin in, stdout out
+      stage: before_post_render
+      priority: 20
 ```
 
-## User hooks: take over any stage
-
-Every text-carrying point of Hexo's render pipeline is exposed as a stage:
+## Stages
 
 | Stage | Text flowing through |
 |-------|----------------------|
@@ -64,39 +29,93 @@ Every text-carrying point of Hexo's render pipeline is exposed as a stage:
 | `after_render:html` | **full page HTML**, after template rendering |
 | `after_render:css` / `after_render:js` | generated assets |
 
-Two hook flavors, both strictly text in, text out:
+These map 1:1 to [Hexo's filter API](https://hexo.io/api/filter). Non-text filters (`template_locals`, `server_middleware`, …) are deliberately out of scope.
+
+## Hooks: three ways to hang a node
+
+**1. Local script** — `module.exports = (text, ctx) => text`, resolved against the Hexo root, re-required on every run. Edit the file, the next render picks it up. No restart, no install.
 
 ```yaml
 hooks:
-  # External command: content arrives on stdin, transformed content leaves on stdout.
-  # Any language. Context via env vars: HOC_STAGE / HOC_POST_SOURCE / HOC_POST_PATH / HOC_POST_TITLE.
-  - command: python scripts/furigana.py
-    stage: before_post_render   # default stage
-    name: furigana              # optional, for logs
-    timeout: 10000              # optional, ms
-
-  # Local JS: module.exports = (text, ctx) => text
-  # Resolved against the Hexo root, reloaded on every run — edit and re-render, no restart.
   - script: scripts/minify.js
     stage: after_render:html
 ```
 
-Semantics:
+**2. External command** — content on stdin, transformed content on stdout. Any language. Context via env vars `HTP_STAGE` / `HTP_POST_SOURCE` / `HTP_POST_PATH` / `HTP_POST_TITLE`.
 
-- Within a stage, built-in converters run first (registry order), then hooks (config order).
-- A hook that fails (non-zero exit, exception, non-string return) is skipped with a warning; the original text continues down the chain. Your build never breaks because of a hook.
-- `ctx` for script hooks is `{ hexo, post, stage, config, pluginConfig, log }`.
-
-## Callout output structure (when enabled)
-
-```html
-<div class="callout callout-diary" data-callout="diary">
-  <div class="callout-title">2026-05-30 Saturday</div>
-  <div class="callout-content"><p>…</p></div>
-</div>
+```yaml
+hooks:
+  - command: python scripts/furigana.py
+    stage: before_post_render   # default stage
+    name: furigana              # optional, for logs
+    priority: 20                # optional, default 10, lower runs first
+    timeout: 10000              # optional, ms
 ```
 
-Fold markers `[!type]-` / `[!type]+` render as `<details>/<summary>`. Disable `inject_css` to hand styling to your theme.
+**3. Programmatic** — other plugins (or a script in your site's `scripts/` dir) can register nodes directly:
+
+```js
+hexo.textPipeline.register({
+  name: 'exclaim',
+  stage: 'before_post_render',
+  priority: 5,
+  convert: (text, ctx) => text + '!'
+});
+```
+
+`ctx` is `{ hexo, post, stage, config, presetConfig, pluginConfig, utils, log }`; `ctx.utils` ships `replaceOutsideCode` / `segmentInlineCode` for safely skipping code blocks in the markdown stage.
+
+### Execution order
+
+Within a stage, nodes run by ascending `priority` (default 10), ties broken by registration order (presets load before hooks). `hexo pipeline` prints the exact resolved order so you never have to guess.
+
+## The checker system (the safety net)
+
+1. **Static checks at registration** — before any post is touched: unknown config keys (with did-you-mean suggestions), invalid stages, duplicate node names, non-numeric priorities, missing script files, and order-ambiguity warnings when nodes from different sources share a priority.
+2. **Runtime guards on every execution** — a node that throws or returns a non-string is skipped with a warning and the original text flows on; a node that fails 3 times in a row is circuit-broken for the rest of the run; suspicious output (non-empty input wiped to empty, or 20x size explosion) is flagged but accepted.
+3. **`hexo pipeline`** — prints every stage's resolved node order (priority + source) plus all check results, so conflicts are visible before you deploy.
+
+Default policy is warn-and-skip: your build never breaks because of one bad hook. Set `strict: true` (for CI) to turn config errors and node failures into build failures.
+
+## Built-in preset: `obsidian`
+
+Compiles Obsidian Flavored Markdown for Hexo. Enable with `presets: [obsidian]`.
+
+| Node | Syntax | Default | Behavior |
+|------|--------|---------|----------|
+| `comment` | `%%inline%%`, multi-line `%% … %%` | on | Stripped before rendering (literal inside code) |
+| `wikilink` | `[[target#anchor\|alias]]` | on | Rewritten to the post's permalink (`abbrlink` first, `post.path` fallback) |
+| `mdlink` | Leftover `.md` links in HTML | on | Fallback rewrite to the post's permalink |
+| `mermaid` | ` ```mermaid ` fenced blocks | on | Swapped to `<pre class="mermaid">` so highlighters don't eat the diagram; lazy CDN loader injected |
+| `callout` | `> [!type] Title` | **off** | `<div class="callout callout-type">`; off because most renderers/themes already support callouts |
+
+```yaml
+presets:
+  - name: obsidian
+    config:
+      domain_prefix: ''                  # link prefix for wikilink/mdlink
+      callout: { enable: true }          # opt in
+      mermaid: { theme: dark, priority: 15 }   # any node: sub-config + priority override
+```
+
+## Installation
+
+```bash
+npm install hexo-text-pipeline --save
+```
+
+## Full configuration reference
+
+```yaml
+text_pipeline:
+  enable: true       # master switch
+  debug: false       # verbose logging
+  strict: false      # config errors / node failures fail the build (CI)
+  inject_css: true   # nodes' default styles (e.g. callout)
+  inject_js: true    # nodes' frontend scripts (e.g. mermaid loader)
+  presets: []        # built-in name | npm package | ./local/path | { name, config }
+  hooks: []          # { script | command, stage, priority, name, timeout, enable }
+```
 
 ## Development
 
@@ -106,8 +125,8 @@ Zero runtime dependencies, Node >= 16.
 npm test   # node --test
 ```
 
-- Architecture, stage table, and the converter/hook contract: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- Adding a built-in converter, plus the syntax roadmap: [docs/ADDING-A-CONVERTER.md](docs/ADDING-A-CONVERTER.md)
+- Architecture, stage table, node contract: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- Extending: hook vs preset node vs new preset: [docs/EXTENDING.md](docs/EXTENDING.md)
 
 ## License
 

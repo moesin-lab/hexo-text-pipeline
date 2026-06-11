@@ -2,96 +2,102 @@
 
 # 架构
 
-一句话：一个小内核（engine）在每个暴露的渲染 stage 上跑一条文本变换流水线；内置 converter 和用户配置的 hook 是流水线上同一种节点。
+一句话：一个小内核在每个暴露的渲染 stage 上跑一条文本变换流水线；preset 节点、用户 hook、API 注册的节点是同一种 node，按 priority 调度，checker 系统全程兜底。
 
 ## 数据流
 
 ```
 hexo generate
-  └─ before_generate            engine：失效 post-index 缓存
-  └─ before_post_render         markdown ── comment ── wikilink ── mermaid ── [hooks…] ──> markdown
+  └─ before_post_render         markdown ──[node 按 priority]──> markdown
   └─ （markdown 渲染器：markdown → HTML）
-  └─ after_post_render          HTML ── mdlink ── callout* ── [hooks…] ──> HTML        （*默认关闭）
+  └─ after_post_render          HTML ──[nodes]──> HTML
   └─ （模板渲染：HTML 片段 → 完整页面）
-  └─ after_render:html          页面 HTML ── [hooks…] ──> 页面 HTML
-  └─ after_render:css / :js     静态资源 ── [hooks…] ──> 静态资源
+  └─ after_render:html          页面 HTML ──[nodes]──> 页面 HTML
+  └─ after_render:css / :js     静态资源 ──[nodes]──> 静态资源
 ```
 
-## stage 表（`lib/core/stages.js`）
+## 模块地图
 
-哪些 Hexo filter 执行点被暴露，以这张表为唯一事实来源。只收"文本进、文本出"的点——这是本插件的边界；非文本的 filter（`template_locals`、`server_middleware` 等）刻意不暴露，需要请直接注册 Hexo filter。
+```
+lib/core/
+├─ stages.js          # stage 表——暴露什么的唯一事实来源
+├─ engine.js          # 唯一调度者：检查 → 加载 → 注册 filter → 受护执行
+├─ config.js          # 声明式配置归一化（text_pipeline.*）
+├─ api.js             # 中央 node 注册表 + hexo.textPipeline 公开 API
+├─ markdown-guard.js  # 共享工具：感知围栏/行内代码的安全替换
+├─ loaders/
+│  ├─ hooks.js        # hooks: [] 配置条目 → node（分发给 script/command）
+│  ├─ script.js       # 本地 JS，每次执行重新加载（即改即用）
+│  ├─ command.js      # 外部命令，stdin → stdout
+│  └─ preset.js       # 内置名 / npm 包 / 本地路径 → 一组 node
+├─ checker/
+│  ├─ static.js       # 注册期检查（schema、stage、重名、顺序歧义）
+│  └─ runtime.js      # 执行期守卫（隔离、熔断、输出异常）
+└─ console/
+   └─ pipeline.js     # `hexo pipeline` 诊断命令
+lib/presets/
+└─ obsidian/          # 内置 preset：5 个 node + post-index 服务
+```
 
-每个 stage 声明一个 `kind`，告诉 engine 如何适配 Hexo filter 的签名：
+## stage 表（`stages.js`）
+
+只收 Hexo 里"文本进、文本出"的 filter 执行点——这是总线的边界。每个 stage 声明 `kind`，告诉 engine 如何适配 filter 签名：
 
 - `post`：filter 收 post 对象，文本在 `data.content`（逐篇文章）
-- `string`：filter 收 `(text, data)` 并返回新文本（整页 / 资源）
+- `string`：filter 收 `(text, data)` 并返回新文本（整页/资源）
 
-新增 stage = 在表里加一项，engine 不需要任何改动。
+新增 stage = 表里加一项，engine、checker、doctor 自动覆盖。
 
-## 流水线节点接口（唯一契约）
+## node：唯一契约
 
 ```js
-module.exports = {
-  name: 'callout',            // 配置键：obsidian_compiler.converters.<name>
+{
+  name: 'callout',            // 唯一标识；preset 的 node 自动带 '<preset>:' 前缀
   stage: 'after_post_render', // stage 表里的任意键
-  enabledByDefault: false,    // 可选：出厂默认关闭；用户的 converters.<name>.enable 永远优先
-  css: '...',                 // 可选：注入 head_end 的样式（inject_css）
-  js: (config) => '...',      // 可选：注入 body_end 的脚本（inject_js）；字符串或子配置的函数
-  test(content) {},           // 廉价预判，false 直接跳过 convert
-  convert(content, ctx) {},   // 纯函数：返回新文本，无副作用
-};
+  priority: 10,               // 小者先跑，同级按注册顺序
+  enabledByDefault: false,    // 可选；用户的 enable 永远优先
+  test(text) {},              // 可选，廉价预判
+  convert(text, ctx) {},      // 纯函数：文本进、文本出
+  css: '...',                 // 可选：注入 head_end（inject_css）
+  js: (config) => '...',      // 可选：注入 body_end（inject_js）
+}
 ```
 
-`ctx = { hexo, post, stage, config, pluginConfig, log }`：
+`ctx = { hexo, post, stage, config, presetConfig, pluginConfig, utils, log }`。
 
-- `post`：post 对象（`post` 类 stage）或 `data` 元信息（`string` 类 stage，如 `{ path }`）
-- `config`：本节点的子配置（`converters.<name>`）
-- `pluginConfig`：归一化后的全局配置
-- `log.debug / log.warn`：带节点名前缀的日志
+三种挂载机制产出完全相同的形状：
 
-用户 hook（`lib/core/user-hooks.js`）在注册时被包装成完全相同的形状，所以 engine 对内置和 hook 一视同仁地调度：
+- **preset loader**：名字加命名空间（`obsidian:callout`），从 preset 配置节解析 node 级 config/enable/priority，收集 `init(hexo)` 一次性副作用
+- **hook loaders**：把脚本路径或命令字符串包装成 `convert`
+- **公开 API**：`hexo.textPipeline.register(node)` 随时校验并加入——engine 在 filter 执行时懒查注册表，晚注册天然生效
 
-- `command` hook：正文 stdin 进 → 变换结果 stdout 出；上下文走 `HOC_*` 环境变量；任何语言
-- `script` hook：本地 JS 文件导出 `(text, ctx) => text`，相对 Hexo 根目录解析，每次执行重新 require（改完下一次渲染即生效，不用重启）
+## checker 系统（三道防线）
 
-## 职责边界
+1. **静态（注册期，`checker/static.js`）**——未知配置键（带编辑距离的 did-you-mean 建议）、非法 stage、重名、priority 类型错误、脚本文件缺失（仅提示——文件可以等会儿再建）、**不同来源**的 node 共享同 stage 同 priority 时的顺序歧义提示（同来源共享是正常的声明顺序）。
+2. **运行期（每次执行，`checker/runtime.js`）**——异常 / 返回非字符串 → 跳过该 node，原文继续；连续失败 3 次 → 熔断，该 node 整轮禁用（不会每篇文章刷一遍日志）；非空输入被清空、或体积膨胀 20 倍 → 标记但放行（两者都可能是正常行为）。
+3. **诊断（`hexo pipeline`）**——打印每个 stage 解析后的 node 顺序（priority + 来源）和全部静态检查结果。
 
-engine（`lib/core/engine.js`）独占所有横切关注点，节点永远不用操心：
-
-- 按 stage 给活跃节点分组，每个 stage 注册一个 Hexo filter，按 stage 的 `kind` 适配签名
-- 顺序：内置 converter（registry 顺序）在前，hook（配置顺序）在后
-- 开关（全局、converter 级含 `enabledByDefault`、hook 级）
-- 错误隔离：节点抛错或返回非字符串只 warn 并跳过，原文继续流动，构建永不失败
-- CSS/JS 注入与 post-index 缓存失效
-- 校验：未知 stage、非法 hook 条目 warn 后跳过
-
-core 提供两个共享服务，节点按需取用：
-
-- `markdown-guard`：markdown 阶段的代码围栏/行内代码感知（`replaceOutsideCode`、`segmentInlineCode`）
-- `post-index`：多键文章索引（标题/slug/源路径）→ 永久链接；`abbrlink` 优先，回退 `post.path`
+`strict: true` 升级处理：静态 error 和运行期失败直接抛出——给 CI 用，坏 hook 就该让构建失败。
 
 ## 设计决策记录
 
 | 决策 | 理由 |
 |------|------|
-| 用户 hook 作为一等机制（command + script，text in/text out） | 绝大多数小型 Hexo 插件本质是"在管线某点变换文本"；一段脚本加一行配置就能替代发布插件。unix 哲学：总线管调度，脚本干活 |
-| `script` hook 每次执行重新 require | 即改即用：`hexo server` 下改脚本，下一次渲染就生效，不用重启——这是"用脚本接管"可用性的关键反馈回路 |
-| hook 失败只跳过自身，永不炸构建 | 用户可以无心理负担地试错；实验失败的代价是一条 warn，不是一次部署失败 |
-| 只暴露"文本进、文本出"的 filter 点 | 契约保持统一（每个节点都是 `(text, ctx) => text`）；非文本 filter 上这条总线没有收益 |
-| `callout` 出厂 `enabledByDefault: false` | 现代渲染器/主题已自带 callout 渲染，二次处理会破坏输出；显式 `enable: true` 打开 |
-| `mermaid` 在 markdown 阶段转成 `<pre class="mermaid">` | 语法高亮器在渲染期吃掉围栏代码块，提前换成原生块级 HTML 是唯一可靠的绕开方式。内容做 HTML 转义，浏览器经 `textContent` 还原给 mermaid.js |
-| mermaid 加载脚本懒加载 | 注入的片段只在页面真的包含图表时才去拉 CDN |
-| `comment` 在 markdown 阶段最先执行 | 被注释掉的语法（如 `%% %%` 里的 wiki 链接）必须在其他 converter 看到之前消失 |
-| callout 在 `after_post_render`（HTML 阶段）处理 | 此时正文里的行内 markdown 已渲染完成；markdown 阶段方案得递归调渲染器 |
-| 显式注册表而非目录扫描 | 执行顺序可见可控；grep `registry.js` 就能看到全部语法 |
-| `convert` 是纯函数，hexo 依赖经 ctx 注入 | 单测不用 mock filter 机制；AI 可以孤立推理单个节点 |
-| 零运行时依赖 | HTML 处理用索引扫描而非解析器库 |
-| `abbrlink` 优先、`post.path` 兜底 | `abbrlink` 来自用户既有工作流；没有它的文章也保持可链接 |
+| 通用 hooks 总线是产品本体，Obsidian 是 preset | 绝大多数小型 Hexo 插件本质是"在管线某点变换文本"；总线把它变成一段脚本加一行配置。Obsidian 编译只是第一个打包好的 node 集 |
+| preset 节点 / hook / API 节点共用一个契约 | engine 只调度一种东西，checker 只检查一种东西，文档只描述一种东西，没有特权路径 |
+| priority 数字 + 注册顺序兜底 | 与 Hexo 自己的 filter 优先级模型一致；要紧时显式，不要紧时无感。doctor 直接打印解析后顺序，永远不用猜 |
+| script hook 每次执行重新 require | 即改即用：`hexo server` 下改脚本，下一次渲染就生效——"用脚本接管"可用性的关键反馈回路 |
+| 默认 warn-and-skip，strict 可选 | 用户可以无心理负担地试错——实验失败的代价是一条 warn，不是一次部署失败。CI 切 strict |
+| 连续失败 3 次熔断 | 一个在第 1 篇就坏掉的 hook，否则会对 500 篇文章刷 500 条相同告警、跑 500 次无谓 spawn |
+| 输出异常只告警不否决 | 清空（注释剥离）和膨胀（资源内联）有时是有意为之；checker 的职责是可见性，不是一票否决 |
+| filter 执行时懒查注册表 | 注册可以发生在任何时刻（配置、preset、其他插件的 textPipeline.register），不用重新接线 |
+| 只暴露文本类 filter 点 | 让每个 node 都是 `(text, ctx) => text`；非文本 filter 上这条总线没有收益 |
+| 零运行时依赖 | 编辑距离、HTML 扫描等都内联实现；总线必须比它要取代的东西更轻 |
 
 ## 约束（让架构保持窄而深的纪律）
 
-1. 流水线节点之间永不互相 require；共享逻辑下沉到 `lib/core/`
+1. node 之间永不互相 require；共享逻辑下沉到 `lib/core/`（或 preset 自己的目录）
 2. `convert` 必须无副作用——单测不需要 mock hexo filter 机制
-3. 注册表是显式数组（`lib/converters/registry.js`），不做目录扫描
-4. 内核不随语法数量增长；新语法的 diff 限于一个新目录加一行注册——而且动手写 converter 前先问：放在站点仓库里的一个用户 hook 是不是就够了
-5. 新 stage 只经 stage 表扩展，engine 保持通用
+3. preset 的 node 列表是显式数组，不做目录扫描
+4. 内核不随 preset 或 node 数量增长；新 stage 是一行表项，新 preset 是一个目录
+5. 动手写 preset node 之前，先问：放在站点仓库里的一个用户 hook 是不是就够了

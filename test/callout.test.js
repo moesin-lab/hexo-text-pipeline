@@ -3,8 +3,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const callout = require('../lib/converters/callout');
-const { parseCalloutInner } = require('../lib/converters/callout/parse');
+const callout = require('../lib/presets/obsidian/converters/callout');
+const { parseCalloutInner } = require('../lib/presets/obsidian/converters/callout/parse');
 
 const convert = (html) => callout.convert(html, {});
 

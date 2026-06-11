@@ -4,13 +4,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const plugin = require('../index');
-const wikilink = require('../lib/converters/wikilink');
+const wikilink = require('../lib/presets/obsidian/converters/wikilink');
 const { replaceOutsideCode } = require('../lib/core/markdown-guard');
 const { createHexoMock } = require('./helpers/mock-hexo');
 
 test('converts wiki links to abbrlink permalink with optional domain prefix', () => {
   const ctx = createHexoMock({
-    config: { obsidian_compiler: { domain_prefix: 'https://example.com/blog/' } },
+    config: { text_pipeline: { presets: [{ name: 'obsidian', config: { domain_prefix: 'https://example.com/blog/' } }] } },
     posts: [{ title: 'Hello Hexo', slug: 'hello-hexo', abbrlink: 'abcd1234' }]
   });
 
@@ -60,7 +60,7 @@ test('does not replace wiki links inside fenced code and inline code', () => {
 
 test('matches obsidian links containing folder path and markdown extension', () => {
   const ctx = createHexoMock({
-    config: { obsidian_compiler: {} },
+    config: { text_pipeline: { presets: ['obsidian'] } },
     posts: [
       {
         title: '记一次个人博客安装配置',
@@ -83,7 +83,7 @@ test('matches obsidian links containing folder path and markdown extension', () 
 
 test('builds index once per generate cycle and reuses cache during rendering', () => {
   const ctx = createHexoMock({
-    config: { obsidian_compiler: {} },
+    config: { text_pipeline: { presets: ['obsidian'] } },
     posts: [{ title: 'Hello Hexo', slug: 'hello-hexo', abbrlink: 'abcd1234' }]
   });
 
@@ -99,7 +99,7 @@ test('builds index once per generate cycle and reuses cache during rendering', (
 
 test('falls back to post.path when frontmatter has no abbrlink', () => {
   const ctx = createHexoMock({
-    config: { obsidian_compiler: {} },
+    config: { text_pipeline: { presets: ['obsidian'] } },
     posts: [
       { title: 'No Abbr', slug: 'no-abbr', path: '2026/06/11/no-abbr/' },
       { title: 'Nothing At All', slug: 'nothing' }
@@ -119,7 +119,7 @@ test('falls back to post.path when frontmatter has no abbrlink', () => {
 test('rebuilds index when cached index is empty', () => {
   const posts = [{ title: 'Hello Hexo', slug: 'hello-hexo', abbrlink: 'abcd1234' }];
   const ctx = createHexoMock({
-    config: { obsidian_compiler: {} },
+    config: { text_pipeline: { presets: ['obsidian'] } },
     posts: []
   });
 
