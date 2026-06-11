@@ -1,6 +1,6 @@
 {
   "name": "hexo-text-pipeline",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A general-purpose hooks bus for Hexo's render pipeline: hang your own scripts/commands on any text stage (text in, text out, edit-and-use), with a checker system as the safety net. Ships an Obsidian Flavored Markdown preset.",
   "main": "index.js",
   "files": [
@@ -37,5 +37,8 @@
   },
   "engines": {
     "node": ">=16"
+  },
+  "dependencies": {
+    "hexo-util": "^2.7.0 || ^3.0.0 || ^4.0.0"
   }
 }

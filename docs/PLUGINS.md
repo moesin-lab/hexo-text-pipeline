@@ -59,7 +59,7 @@ module.exports = {
 - When the node sits on `before_post_render` (markdown input), the compiled convert is **wrapped in markdown-guard automatically**: fenced blocks and inline code are never touched. Other stages replace across the full text. There is no switch to disable the guard — if you need to touch code blocks, write a convert (`ctx.utils` has the tools).
 - `replace` works on every registration path: preset nodes and `hexo.textPipeline.register` accept it too.
 
-Deliberately not provided: `prepend` / `append` / `wrap` (a one-line convert; the DSL would save nothing), HTML selector operations (no DOM under zero dependencies), conditional/composition fields (that's inventing a programming language inside an object literal).
+Deliberately not provided: `prepend` / `append` / `wrap` (a one-line convert; the DSL would save nothing), HTML selector operations (no DOM, and we won't pull in a parser for one), conditional/composition fields (that's inventing a programming language inside an object literal).
 
 ## Config overrides (`_config.yml`)
 

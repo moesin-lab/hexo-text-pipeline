@@ -23,7 +23,7 @@ test('converts wiki links to abbrlink permalink with optional domain prefix', ()
 
   assert.equal(
     result,
-    '[Hello Hexo](https://example.com/blog/posts/abcd1234) [Click](https://example.com/blog/posts/abcd1234) [hello-hexo](https://example.com/blog/posts/abcd1234#Section%20A) [[Missing]]'
+    '[Hello Hexo](https://example.com/blog/posts/abcd1234) [Click](https://example.com/blog/posts/abcd1234) [hello-hexo](https://example.com/blog/posts/abcd1234#Section-A) [[Missing]]'
   );
 });
 
@@ -71,10 +71,14 @@ test('leaves embeds (![[...]]) to the embed node, drops block-ref anchors, links
   assert.equal(replacer('![[Hello Hexo]]'), '![[Hello Hexo]]');
   // 块引用锚点丢弃，保留文章链接
   assert.equal(replacer('[[Hello Hexo#^block-id]]'), '[Hello Hexo](/posts/abcd1234)');
-  // 同页标题链接
-  assert.equal(replacer('[[#Section A|jump]]'), '[jump](#Section%20A)');
+  // 同页标题链接：锚点 slug 与 hexo-renderer-marked 的标题 id 同源（空格 → -）
+  assert.equal(replacer('[[#Section A|jump]]'), '[jump](#Section-A)');
   // 同页块引用无法表达，原样保留
   assert.equal(replacer('[[#^block]]'), '[[#^block]]');
+
+  // marked.modifyAnchors: 1 → 小写（与渲染器实际生成的 id 一致）
+  const lowered = wikilink._internal.createWikiLinkReplacer(index, '', 1);
+  assert.equal(lowered('[[#Section A|jump]]'), '[jump](#section-a)');
 });
 
 test('matches obsidian links containing folder path and markdown extension', () => {

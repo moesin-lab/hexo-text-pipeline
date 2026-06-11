@@ -59,7 +59,7 @@ module.exports = {
 - node 落在 `before_post_render`（输入是 markdown）时**自动套 markdown-guard**：围栏代码块和行内代码绝不会被误伤。其余 stage 直接全文替换。没有关闭 guard 的开关——需要碰代码块就写 convert（`ctx.utils` 里工具齐全）。
 - `replace` 在所有注册路径都可用：preset node、`hexo.textPipeline.register` 同样接受。
 
-刻意不做的：`prepend` / `append` / `wrap`（一行 convert 即可，DSL 不省心智）、HTML 选择器操作（零依赖下没有 DOM）、条件组合字段（那是在对象字面量里发明编程语言）。
+刻意不做的：`prepend` / `append` / `wrap`（一行 convert 即可，DSL 不省心智）、HTML 选择器操作（没有 DOM，也不打算为此引入解析器）、条件组合字段（那是在对象字面量里发明编程语言）。
 
 ## 配置覆盖（`_config.yml`）
 

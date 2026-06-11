@@ -175,7 +175,7 @@ text_pipeline:
 
 ## Development
 
-Zero runtime dependencies, Node >= 16.
+The only runtime dependency is `hexo-util` (ships with Hexo itself; npm dedupes to the copy your site already has, zero extra install cost). Node >= 16.
 
 ```bash
 npm test   # node --test

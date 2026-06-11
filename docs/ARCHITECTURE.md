@@ -111,7 +111,7 @@ Load order is preset → hook → plugin; within the same stage, slot and priori
 | Output anomaly checks warn but accept | Wiping (comment stripping) and inflation (asset inlining) are sometimes intended; the checker's job is visibility, not vetoing |
 | Lazy registry lookup at filter execution | Registration can happen at any time (config, preset, another plugin's `textPipeline.register`) without re-wiring filters |
 | Only text filter points exposed | Keeps every node `(text, ctx) => text`; non-text filters gain nothing from this bus |
-| Zero runtime dependencies | Edit-distance, HTML scanning, etc. are implemented inline; the bus must stay lighter than what it replaces |
+| Single runtime dependency: hexo-util | The bus must stay lighter than what it replaces, so edit-distance, markdown scanning, etc. are implemented inline; but anchor slugs (`slugize`) must come from the **same source** as Hexo's renderer — a hand-rolled copy that differs slightly breaks in-page jumps. hexo-util is a dependency of Hexo itself, so the host site always has it and npm dedupes to zero extra install cost (the version range is widened to ^2.7 ‖ ^3 ‖ ^4 to match whatever the site's Hexo ships) |
 
 ## Constraints (the discipline that keeps the architecture narrow and deep)
 

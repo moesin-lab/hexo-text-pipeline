@@ -175,7 +175,7 @@ text_pipeline:
 
 ## 开发
 
-零运行时依赖，Node >= 16。
+唯一运行时依赖是 `hexo-util`（Hexo 本体自带，npm 会直接复用站点已有的那份，零额外安装成本）。Node >= 16。
 
 ```bash
 npm test   # node --test

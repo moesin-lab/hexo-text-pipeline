@@ -24,7 +24,8 @@ test('ignores a mermaid fence nested inside an outer fence', () => {
 
 test('supports tilde fences and surrounding text', () => {
   const input = ['before', '~~~mermaid', 'pie', '"a": 1', '~~~', 'after'].join('\n');
-  assert.equal(convert(input), 'before\n<pre class="mermaid">pie\n"a": 1</pre>\nafter');
+  // hexo-util escapeHTML 连引号一起转义；textContent 还原后 mermaid 读到的仍是原文
+  assert.equal(convert(input), 'before\n<pre class="mermaid">pie\n&quot;a&quot;: 1</pre>\nafter');
 });
 
 test('leaves an unclosed mermaid fence as-is', () => {
