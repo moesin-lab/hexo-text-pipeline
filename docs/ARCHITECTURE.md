@@ -1,64 +1,66 @@
-# 架构
+**English** | [简体中文](ARCHITECTURE.zh-CN.md)
 
-一句话：一个小内核（engine）按 Hexo 渲染阶段调度 N 个互相独立的 converter，每个 Obsidian 语法一个目录。
+# Architecture
 
-## 数据流
+In one sentence: a small kernel (engine) dispatches N mutually independent converters by Hexo render stage, one directory per Obsidian syntax.
+
+## Data flow
 
 ```
 hexo generate
-  └─ before_generate            engine: 失效 post-index 缓存
-  └─ before_post_render         输入 markdown ── wikilink ──> markdown
-  └─ (hexo-renderer-marked 渲染 markdown → HTML)
-  └─ after_post_render          输入 HTML ── callout ──> ── mdlink ──> HTML
+  └─ before_generate            engine: invalidate post-index cache
+  └─ before_post_render         markdown in ── wikilink ──> markdown
+  └─ (hexo-renderer-marked renders markdown → HTML)
+  └─ after_post_render          HTML in ── callout ──> ── mdlink ──> HTML
 ```
 
-## Converter 接口（唯一契约）
+## Converter interface (the only contract)
 
 ```js
 module.exports = {
-  name: 'callout',            // 配置键名：obsidian_compiler.converters.<name>
-  stage: 'after_post_render', // 'before_post_render'（markdown）| 'after_post_render'（HTML）
-  css: '...',                 // 可选：默认样式，inject_css 开启时由 engine 注入 head_end
-  test(content) {},           // 廉价预判，false 直接跳过 convert
-  convert(content, ctx) {},   // 纯函数：返回新 content，不产生副作用
+  name: 'callout',            // config key: obsidian_compiler.converters.<name>
+  stage: 'after_post_render', // 'before_post_render' (markdown) | 'after_post_render' (HTML)
+  css: '...',                 // optional: default styles, injected into head_end when inject_css is on
+  test(content) {},           // cheap pre-check; false skips convert entirely
+  convert(content, ctx) {},   // pure function: returns new content, no side effects
 };
 ```
 
-`ctx = { hexo, post, config, pluginConfig, log }`：
+`ctx = { hexo, post, config, pluginConfig, log }`:
 
-- `config`：本 converter 的子配置（`converters.<name>`）
-- `pluginConfig`：归一化后的全局配置（含 `domainPrefix` 等）
-- `log.debug / log.warn`：带 converter 名前缀的日志
+- `config`: this converter's sub-config (`converters.<name>`)
+- `pluginConfig`: the normalized global config (including `domainPrefix`, etc.)
+- `log.debug / log.warn`: logger prefixed with the converter name
 
-## 职责边界
+## Responsibility boundaries
 
-engine（`lib/core/engine.js`）负责所有横切关注点，converter 一概不管：
+The engine (`lib/core/engine.js`) owns every cross-cutting concern so converters never have to:
 
-- 按 stage 分组注册 filter，registry 顺序即同 stage 执行顺序
-- enable 开关（全局 + 每 converter）
-- 异常隔离：单个 converter 抛错只 warn 并跳过，不让构建失败
-- CSS 注入、post-index 缓存失效
+- registers one filter per stage, with registry order as execution order within a stage
+- enable switches (global + per converter)
+- error isolation: a throwing converter is warned about and skipped without failing the build
+- CSS injection and post-index cache invalidation
 
-core 提供两个共享服务，converter 按需引用：
+Core provides two shared services that converters use as needed:
 
-- `markdown-guard`：before 阶段做行内替换时跳过 fenced/inline code
-- `post-index`：文章多键索引（title/slug/source 路径）→ 永久链接。
-  abbrlink（frontmatter 标签）优先，缺失时兜底用 hexo 生成的 `post.path`，都没有则不改写
+- `markdown-guard`: skips fenced/inline code when doing inline replacement in the before stage
+- `post-index`: multi-key post index (title/slug/source path) → permalink.
+  `abbrlink` (frontmatter field) takes priority; falls back to the Hexo-generated `post.path` when missing; rewrites nothing when neither exists
 
-## 设计决策记录
+## Design decision record
 
-| 决策 | 理由 |
-|------|------|
-| callout 在 `after_post_render`（HTML 阶段）处理 | 正文里的行内代码、加粗等 markdown 此时已被 renderer 渲染好；markdown 阶段方案需要自己递归调渲染器（marked 不渲染块级 HTML 内部的 markdown），是最大的坑 |
-| 显式注册表而非目录扫描 | 执行顺序可见可控，grep `registry.js` 即知全部语法；AI 增改语法时 diff 可预测 |
-| `convert` 为纯函数，hexo 依赖经 ctx 注入 | 单测不用 mock filter 机制；AI 可以孤立推理单个 converter |
-| 零运行时依赖 | 与前身 hexo-obsidian-link-converter 一致；HTML 处理用索引扫描而非引入解析库，体量可控 |
-| abbrlink 优先、`post.path` 兜底 | abbrlink 来自 frontmatter 标签（用户现有工作流）；无标签的文章退回 hexo permalink 生成的路径，仍可被链接 |
-| 默认 CSS 经 injector 注入、可一键关闭 | 插件开箱可用；主题已有 callout 样式时 `inject_css: false` 完全让位 |
+| Decision | Rationale |
+|----------|-----------|
+| Process callouts in `after_post_render` (HTML stage) | Inline code, bold, etc. inside the body have already been rendered by then; a markdown-stage approach would have to recursively invoke the renderer itself (marked does not render markdown inside block-level HTML) — the biggest pitfall |
+| Explicit registry instead of directory scanning | Execution order is visible and controllable; grep `registry.js` to see every syntax; diffs stay predictable when AI adds or changes a syntax |
+| `convert` is a pure function, hexo dependencies injected via ctx | Unit tests don't need to mock the filter machinery; AI can reason about a single converter in isolation |
+| Zero runtime dependencies | Consistent with the predecessor hexo-obsidian-link-converter; HTML processing uses index scanning instead of pulling in a parser library, keeping the footprint small |
+| `abbrlink` first, `post.path` fallback | `abbrlink` comes from a frontmatter field (the user's existing workflow); posts without it fall back to the path Hexo generates from the permalink config, so they remain linkable |
+| Default CSS injected via injector, one-switch opt-out | The plugin works out of the box; `inject_css: false` yields entirely to themes that ship their own callout styles |
 
-## 约束（保持架构窄而深的纪律）
+## Constraints (the discipline that keeps the architecture narrow and deep)
 
-1. converter 之间不互相 require；共享逻辑下沉到 `lib/core/`
-2. `convert` 必须无副作用 —— 单测不需要 mock hexo filter 机制
-3. 注册表是显式数组（`lib/converters/registry.js`），不做目录扫描
-4. 内核不随语法数量增长；新语法的 diff 应局限在一个新目录 + registry 一行
+1. Converters never require each other; shared logic sinks into `lib/core/`
+2. `convert` must be side-effect free — unit tests need no mock of the hexo filter machinery
+3. The registry is an explicit array (`lib/converters/registry.js`), no directory scanning
+4. The kernel does not grow with the number of syntaxes; a new syntax's diff should be confined to one new directory plus one registry line

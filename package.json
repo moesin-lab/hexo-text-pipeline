@@ -6,7 +6,8 @@
   "files": [
     "index.js",
     "lib",
-    "README.md"
+    "README.md",
+    "README.zh-CN.md"
   ],
   "scripts": {
     "test": "node --test",
@@ -22,6 +23,14 @@
   ],
   "author": "Sentixxx",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moesin-lab/hexo-obsidian-compiler.git"
+  },
+  "homepage": "https://github.com/moesin-lab/hexo-obsidian-compiler#readme",
+  "bugs": {
+    "url": "https://github.com/moesin-lab/hexo-obsidian-compiler/issues"
+  },
   "engines": {
     "node": ">=16"
   }
