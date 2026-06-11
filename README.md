@@ -51,6 +51,7 @@ hooks:
     priority: 20                # optional, default 10, lower runs first
     timeout: 10000              # optional, ms
     match: '\\{furigana'        # optional regex: skip the hook (and the spawn) when the text doesn't match
+    slot: late                  # optional: late (default, sees the stage's final text) | early (raw text)
 ```
 
 **3. Programmatic** — other plugins (or a script in your site's `scripts/` dir) can register nodes directly:
@@ -66,9 +67,18 @@ hexo.textPipeline.register({
 
 `ctx` is `{ hexo, post, stage, config, presetConfig, pluginConfig, utils, log }`; `ctx.utils` ships `replaceOutsideCode` / `segmentInlineCode` for safely skipping code blocks in the markdown stage.
 
-### Execution order
+### Execution order: two slots per stage
 
-Within a stage, nodes run by ascending `priority` (default 10), ties broken by registration order (presets load before hooks). `hexo pipeline` prints the exact resolved order so you never have to guess.
+Each stage has two mounting slots, registered around Hexo's own filters:
+
+```
+[5]   early slot — preset nodes by default (they need the raw text, e.g. mermaid
+      must see fenced blocks before the highlighter eats them)
+[10]  hexo internals (code highlighting, …) and other plugins
+[100] late slot — your hooks by default (they see the final text of the stage)
+```
+
+Override with `slot: early` on a hook (run before everything) or `slot: late` on a preset node. Within a slot, nodes run by ascending `priority` (default 10), ties by declaration order. `hexo pipeline` prints the exact resolved order so you never have to guess.
 
 ## The checker system (the safety net)
 
@@ -95,11 +105,13 @@ text_pipeline:
 ```
 
 ```
-.text-pipeline-tap/_posts_my-post.md/after_post_render/
-├── 00-input.txt              ← exactly what a hook on this stage receives
-├── 01-obsidian_mdlink.txt    ← text after each node that changed it
-└── 02-hook_my-hook.txt       ← the last file is the stage's final output
+.text-pipeline-tap/_posts_my-post.md/after_post_render.late/
+├── 00-input.txt              ← exactly what a (late-slot) hook on this stage receives
+├── 01-hook_my-hook.txt       ← text after each node that changed it
+└── …                         ← the last file is the slot's final output
 ```
+
+One snapshot directory per stage and slot (`<stage>.early` / `<stage>.late`).
 
 Each render cycle replaces the previous snapshot. Add the tap dir to `.gitignore` and turn `enable` off for normal builds.
 
@@ -140,7 +152,7 @@ text_pipeline:
   inject_css: true   # nodes' default styles (e.g. callout)
   inject_js: true    # nodes' frontend scripts (e.g. mermaid loader)
   presets: []        # built-in name | npm package | ./local/path | { name, config }
-  hooks: []          # { script | command, stage, priority, name, timeout, match, enable }
+  hooks: []          # { script | command, stage, slot, priority, name, timeout, match, enable }
   tap:               # debug mode: dump per-stage text snapshots (see "Developing hooks")
     enable: false
     match: ''

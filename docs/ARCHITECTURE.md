@@ -46,6 +46,17 @@ Only text-in/text-out Hexo filter points qualify — that is the bus's boundary.
 - `post`: the filter receives a post object; text lives in `data.content` (per post)
 - `string`: the filter receives `(text, data)` and returns the new text (whole page / asset)
 
+Each stage is mounted **twice** on the Hexo filter, sandwiching Hexo internals and other plugins:
+
+```
+[5]   early slot   ← preset nodes by default (need raw text; e.g. mermaid must
+                     see fenced blocks before backtick_code_block swallows them)
+[10]  hexo internal filters, other plugins
+[100] late slot    ← user hooks by default (see the stage's final text)
+```
+
+Nodes move between slots with `slot: 'early' | 'late'`.
+
 Adding a stage = one table entry; engine, checker, and doctor pick it up automatically.
 
 ## Node: the single contract
@@ -54,7 +65,8 @@ Adding a stage = one table entry; engine, checker, and doctor pick it up automat
 {
   name: 'callout',            // unique id; preset nodes get a '<preset>:' prefix automatically
   stage: 'after_post_render', // any key of the stage table
-  priority: 10,               // lower runs first; ties broken by registration order
+  slot: 'early',              // 'early' (default for presets/api) | 'late' (default for hooks)
+  priority: 10,               // lower runs first within the slot; ties broken by registration order
   enabledByDefault: false,    // optional; the user's enable always wins
   test(text) {},              // optional cheap pre-check
   convert(text, ctx) {},      // pure function: text in, text out
@@ -86,6 +98,7 @@ All three mounting mechanisms produce this exact shape:
 | Generic hooks bus as the product; Obsidian as a preset | Most small Hexo plugins are "transform text at a pipeline point"; the bus makes that a script + one config line. The Obsidian compiler is just the first packaged node set |
 | One contract for preset nodes / hooks / API nodes | The engine schedules one thing; checkers check one thing; docs document one thing. No privileged path |
 | Priority numbers + registration order for ties | Matches Hexo's own filter priority model; explicit when it matters, unobtrusive when it doesn't. Doctor shows the resolved order so it's never a guess |
+| Dual slots: presets early, hooks late | Presets need raw text (verified on a real site: hexo's `backtick_code_block` at priority 10 otherwise swallows fenced blocks before mermaid sees them); hooks want the final text and must not corrupt code accidentally. Sandwiching hexo internals serves both defaults, `slot` overrides either |
 | Script hooks re-required on every run | Edit-and-use: under `hexo server`, editing the script takes effect on the next render. The feedback loop that makes "take over with a script" practical |
 | Warn-and-skip by default, `strict` opt-in | Users iterate on scripts freely — a broken experiment costs a warning, not a failed deploy. CI flips to strict |
 | Circuit breaker after 3 consecutive failures | A hook broken at post #1 of 500 would otherwise emit 500 identical warnings and 500 wasted spawns |

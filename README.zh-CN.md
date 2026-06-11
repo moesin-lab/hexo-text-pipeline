@@ -51,6 +51,7 @@ hooks:
     priority: 20                # 可选，默认 10，小者先跑
     timeout: 10000              # 可选，毫秒
     match: '\\{furigana'        # 可选正则：文本不命中直接跳过（command 可省一次 spawn）
+    slot: late                  # 可选：late（默认，看到该 stage 最终文本）| early（原始文本）
 ```
 
 **3. 程序化注册** —— 其他插件（或站点 `scripts/` 目录里的脚本）可以直接注册 node：
@@ -66,9 +67,18 @@ hexo.textPipeline.register({
 
 `ctx` 为 `{ hexo, post, stage, config, presetConfig, pluginConfig, utils, log }`；`ctx.utils` 自带 `replaceOutsideCode` / `segmentInlineCode`，在 markdown 阶段做行内替换时安全跳过代码块。
 
-### 执行顺序
+### 执行顺序：每个 stage 两个挂点
 
-同一 stage 内按 `priority` 升序执行（默认 10），同级按注册顺序（preset 先于 hook 加载）。`hexo pipeline` 会打印最终解析出的精确顺序，永远不用猜。
+每个 stage 有两个挂点，注册在 Hexo 自己的 filter 前后：
+
+```
+[5]   early 挂点 —— preset node 默认在这里（它们需要原始文本，
+      比如 mermaid 必须在高亮器吃掉围栏代码块之前看到它）
+[10]  hexo 内置 filter（代码高亮等）和其他插件
+[100] late 挂点 —— 你的 hook 默认在这里（看到该 stage 的最终文本）
+```
+
+hook 加 `slot: early` 可以抢到所有人之前；preset node 加 `slot: late` 可以压到最后。同一挂点内按 `priority` 升序（默认 10），同级按声明顺序。`hexo pipeline` 会打印最终解析出的精确顺序，永远不用猜。
 
 ## Checker 系统（兜底）
 
@@ -95,11 +105,13 @@ text_pipeline:
 ```
 
 ```
-.text-pipeline-tap/_posts_my-post.md/after_post_render/
-├── 00-input.txt              ← 挂在该 stage 的 hook 收到的就是这个
-├── 01-obsidian_mdlink.txt    ← 每个改动了文本的 node 改完后的样子
-└── 02-hook_my-hook.txt       ← 最后一个文件即该 stage 的最终输出
+.text-pipeline-tap/_posts_my-post.md/after_post_render.late/
+├── 00-input.txt              ← 挂在该 stage（late 挂点）的 hook 收到的就是这个
+├── 01-hook_my-hook.txt       ← 每个改动了文本的 node 改完后的样子
+└── …                         ← 最后一个文件即该挂点的最终输出
 ```
+
+每个 stage 的每个挂点一个快照目录（`<stage>.early` / `<stage>.late`）。
 
 每轮渲染替换上一轮快照。tap 目录记得加进 `.gitignore`，正常构建时关掉 `enable`。
 
@@ -140,7 +152,7 @@ text_pipeline:
   inject_css: true   # node 的默认样式（如 callout）
   inject_js: true    # node 的前端脚本（如 mermaid 加载器）
   presets: []        # 内置名 | npm 包 | ./本地路径 | { name, config }
-  hooks: []          # { script | command, stage, priority, name, timeout, match, enable }
+  hooks: []          # { script | command, stage, slot, priority, name, timeout, match, enable }
   tap:               # 调试模式：落盘每个 stage 的文本快照（见"开发 hook"）
     enable: false
     match: ''

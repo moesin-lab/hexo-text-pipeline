@@ -46,6 +46,17 @@ lib/presets/
 - `post`：filter 收 post 对象，文本在 `data.content`（逐篇文章）
 - `string`：filter 收 `(text, data)` 并返回新文本（整页/资源）
 
+每个 stage 在 hexo filter 上**挂两次**，把 Hexo 内置 filter 和其他插件夹在中间：
+
+```
+[5]   early 挂点   ← preset node 默认在这里（需要原始文本；如 mermaid 必须
+                     在 backtick_code_block 吞掉围栏代码块之前看到它）
+[10]  hexo 内置 filter、其他插件
+[100] late 挂点    ← 用户 hook 默认在这里（看到该 stage 的最终文本）
+```
+
+node 用 `slot: 'early' | 'late'` 在两个挂点间移动。
+
 新增 stage = 表里加一项，engine、checker、doctor 自动覆盖。
 
 ## node：唯一契约
@@ -54,7 +65,8 @@ lib/presets/
 {
   name: 'callout',            // 唯一标识；preset 的 node 自动带 '<preset>:' 前缀
   stage: 'after_post_render', // stage 表里的任意键
-  priority: 10,               // 小者先跑，同级按注册顺序
+  slot: 'early',              // 'early'（preset/api 默认）| 'late'（hook 默认）
+  priority: 10,               // 同挂点内小者先跑，同级按注册顺序
   enabledByDefault: false,    // 可选；用户的 enable 永远优先
   test(text) {},              // 可选，廉价预判
   convert(text, ctx) {},      // 纯函数：文本进、文本出
@@ -86,6 +98,7 @@ lib/presets/
 | 通用 hooks 总线是产品本体，Obsidian 是 preset | 绝大多数小型 Hexo 插件本质是"在管线某点变换文本"；总线把它变成一段脚本加一行配置。Obsidian 编译只是第一个打包好的 node 集 |
 | preset 节点 / hook / API 节点共用一个契约 | engine 只调度一种东西，checker 只检查一种东西，文档只描述一种东西，没有特权路径 |
 | priority 数字 + 注册顺序兜底 | 与 Hexo 自己的 filter 优先级模型一致；要紧时显式，不要紧时无感。doctor 直接打印解析后顺序，永远不用猜 |
+| 双挂点：preset 早、hook 晚 | preset 需要原始文本（真实站点验证过：hexo 的 `backtick_code_block` 优先级 10，否则会先把围栏代码块吞掉，mermaid 看不到）；hook 想要最终文本、也不该误伤代码。把 hexo 内置夹在中间同时满足两边默认，`slot` 字段随时覆盖 |
 | script hook 每次执行重新 require | 即改即用：`hexo server` 下改脚本，下一次渲染就生效——"用脚本接管"可用性的关键反馈回路 |
 | 默认 warn-and-skip，strict 可选 | 用户可以无心理负担地试错——实验失败的代价是一条 warn，不是一次部署失败。CI 切 strict |
 | 连续失败 3 次熔断 | 一个在第 1 篇就坏掉的 hook，否则会对 500 篇文章刷 500 条相同告警、跑 500 次无谓 spawn |

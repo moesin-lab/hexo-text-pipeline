@@ -279,16 +279,42 @@ test('runtime guard rethrows in strict mode', () => {
   assert.throws(() => guard.run(node, 'x', { stage: 's', log: silentLog() }), /\[boom\] boom/);
 });
 
-test('shared priority across sources is info-level: visible in doctor, no build warning', () => {
+test('shared priority across sources (same slot) is info-level: doctor only, no build warning', () => {
   const ctx = createHexoMock({
     config: {
-      text_pipeline: { presets: ['obsidian'], hooks: [{ command: upperCommand, name: 'upper' }] }
+      text_pipeline: {
+        presets: ['obsidian'],
+        hooks: [{ command: upperCommand, name: 'upper', slot: 'early' }]
+      }
     }
   });
   plugin(ctx.hexo);
 
   assert.ok(!ctx.warnings.some((w) => w.includes('share priority')));
   assert.ok(ctx.hexo._textPipeline.issues.some((i) => i.level === 'info' && i.message.includes('share priority')));
+});
+
+test('default slots: hooks run late, presets run early, slot is overridable', () => {
+  const ctx = createHexoMock({
+    config: {
+      text_pipeline: {
+        presets: ['obsidian'],
+        hooks: [{ command: upperCommand, name: 'upper' }]
+      }
+    }
+  });
+  plugin(ctx.hexo);
+
+  const registry = ctx.hexo._textPipeline.registry;
+  assert.ok(registry.forStage('before_post_render', 'early').some((n) => n.name === 'obsidian:comment'));
+  assert.deepEqual(registry.forStage('before_post_render', 'late').map((n) => n.name), ['hook:upper']);
+
+  // 同 stage 不同 slot 不再算顺序歧义（默认配置零提示）
+  assert.ok(!ctx.hexo._textPipeline.issues.some((i) => i.message.includes('share priority')));
+
+  // mock 按注册顺序执行 early → late：comment 先剥注释，hook 再大写
+  const result = ctx.handlers.get('before_post_render')({ content: 'a %%x%% b' }).content;
+  assert.equal(result, 'A  B');
 });
 
 // ---- tap 调试模式 ----
@@ -313,7 +339,7 @@ test('tap dumps each stage input and per-node snapshots for hook development', (
       source: '_posts/my-post.md'
     });
 
-    const stageDir = path.join(dir, 'tap-out', '_posts_my-post.md', 'before_post_render');
+    const stageDir = path.join(dir, 'tap-out', '_posts_my-post.md', 'before_post_render.early');
     const files = fs.readdirSync(stageDir).sort();
     assert.deepEqual(files, ['00-input.txt', '01-obsidian_comment.txt']);
     assert.equal(fs.readFileSync(path.join(stageDir, '00-input.txt'), 'utf8'), 'hello %%secret%% world');

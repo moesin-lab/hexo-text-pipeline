@@ -18,12 +18,19 @@ Everything you need to develop a custom hook. For when to choose a hook vs a pre
 
 | Stage | Input text | Runs | `post` / `data` you get |
 |-------|-----------|------|--------------------------|
-| `before_post_render` | The post's **raw markdown**, frontmatter already stripped. Wiki links, `%%comments%%`, fenced blocks are intact — this plugin's stage filters run at priority 5, ahead of Hexo's internal code-block handling | once per post/page | full post object: `title`, `source` (`_posts/x.md`), `path`, `slug`, frontmatter fields |
-| `after_post_render` | The post's **rendered HTML fragment** (no layout). Code blocks are already `<figure class="highlight">…` | once per post/page | same post object |
+| `before_post_render` | The post's **markdown**, frontmatter already stripped | once per post/page | full post object: `title`, `source` (`_posts/x.md`), `path`, `slug`, frontmatter fields |
+| `after_post_render` | The post's **rendered HTML fragment** (no layout) | once per post/page | same post object |
 | `after_render:html` | The **complete page HTML** including layout, `<head>`, injected assets | once per generated page (posts, index, archives, …) | `{ path }` of the output file |
 | `after_render:css` / `:js` | the generated asset's full text | once per asset | `{ path }` |
 
-Sample `before_post_render` input (captured with tap):
+### Slots: early vs late
+
+What your hook actually receives depends on its **slot**:
+
+- `slot: late` (the default for hooks) — runs **after** Hexo internals and other plugins. On `before_post_render` that means preset nodes have already run, and fenced code blocks are already swallowed into `<hexoPostRenderCodeBlock>` placeholders by the highlighter — you can't accidentally corrupt code, and you see what will really be rendered.
+- `slot: early` — runs **before** everything, on the raw text. Pick this when you need intact fenced blocks, raw `%%comments%%`, etc.
+
+Sample `before_post_render` **early** input (captured with tap):
 
 ```markdown
 Link to [[Other Post]] and *quiet* words. %%hidden note%% PIPE here.
@@ -37,15 +44,21 @@ A --> B
 ```
 ```
 
-Sample `after_post_render` input for the same post:
+The same post at the `before_post_render` **late** slot — wikilink/comment/mermaid already applied by the early preset nodes, plain code blocks already placeholder-wrapped by Hexo's highlighter:
 
-```html
-<p>Link to <a href="/posts/xyz789">Other Post</a> and <em>quiet</em> words.  BUS here.</p>
-<blockquote><p>[!note] Heads up<br>callout body</p></blockquote>
-…
+```markdown
+Link to [Other Post](/posts/xyz789) and *quiet* words.  PIPE here.
+
+> [!note] Heads up
+> callout body
+
+<pre class="mermaid">graph TD
+A --&gt; B</pre>
+
+<hexoPostRenderCodeBlock><figure class="highlight js">…</figure></hexoPostRenderCodeBlock>
 ```
 
-Don't guess — run tap once and read the `00-input.txt` for your stage (below).
+Don't guess — run tap once and read the `00-input.txt` for your stage and slot (below).
 
 ## Script hooks
 
@@ -135,7 +148,8 @@ The command is spawned **once per post per render** — keep it fast, and use `m
 |-------|----------|---------|---------|
 | `script` / `command` | one of the two | — | what to run |
 | `stage` | no | `before_post_render` | where to run |
-| `priority` | no | `10` | lower runs first; ties by declaration order (preset nodes load before hooks) |
+| `slot` | no | `late` | `late` = after Hexo internals & other plugins (final text); `early` = before everything (raw text) |
+| `priority` | no | `10` | lower runs first within the slot; ties by declaration order |
 | `name` | no | `hook-<index>` | log / tap / doctor label |
 | `match` | no | — | regex; the hook is skipped when the input doesn't match |
 | `timeout` | no | `10000` | ms, command only |
@@ -157,10 +171,10 @@ text_pipeline:
 ```
 
 ```
-.text-pipeline-tap/_posts_my-post.md/<stage>/
-├── 00-input.txt          ← what your hook receives (after earlier nodes)
+.text-pipeline-tap/_posts_my-post.md/<stage>.<slot>/
+├── 00-input.txt          ← what your hook receives (after earlier nodes in this slot)
 ├── 01-<node>.txt         ← after each node that changed the text
-└── …                     ← last file = the stage's final output
+└── …                     ← last file = the slot's final output
 ```
 
 **`hexo pipeline`** — the resolved execution order (is my hook where I think it is?).
