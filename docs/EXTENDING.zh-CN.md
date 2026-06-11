@@ -17,6 +17,8 @@ text_pipeline:
 
 改脚本、重新渲染、完事。markdown 阶段做行内替换时用 `ctx.utils.replaceOutsideCode(text, fn)` 跳过代码块。非 JS 逻辑走 `command:`（stdin → stdout）。
 
+完整契约——各 stage 输入形态、`ctx` 字段、环境变量、调试工作流：[HOOKS-API.zh-CN.md](HOOKS-API.zh-CN.md)。
+
 ## 第 2 级：往现有 preset 加 node
 
 适用于该 preset 的所有用户都需要的语法（如给 `obsidian` preset 加一种新 Obsidian 语法）：

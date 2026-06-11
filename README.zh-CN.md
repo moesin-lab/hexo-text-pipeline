@@ -155,6 +155,7 @@ text_pipeline:
 npm test   # node --test
 ```
 
+- **Hooks 接口文档（写 hook 从这里开始）**：[docs/HOOKS-API.zh-CN.md](docs/HOOKS-API.zh-CN.md)
 - 架构、stage 表、node 契约：[docs/ARCHITECTURE.zh-CN.md](docs/ARCHITECTURE.zh-CN.md)
 - 扩展指南：hook vs preset node vs 新 preset：[docs/EXTENDING.zh-CN.md](docs/EXTENDING.zh-CN.md)
 

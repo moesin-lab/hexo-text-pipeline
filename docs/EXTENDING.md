@@ -17,6 +17,8 @@ text_pipeline:
 
 Edit the script, re-render, done. Use `ctx.utils.replaceOutsideCode(text, fn)` when doing inline markdown replacement to skip code blocks. Non-JS logic goes through `command:` instead (stdin → stdout).
 
+Full contract — stage inputs, `ctx` fields, env vars, debugging workflow: [HOOKS-API.md](HOOKS-API.md).
+
 ## Level 2: a node in an existing preset
 
 For syntax that every user of the preset wants (e.g. a new Obsidian syntax in the `obsidian` preset):

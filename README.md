@@ -155,6 +155,7 @@ Zero runtime dependencies, Node >= 16.
 npm test   # node --test
 ```
 
+- **Hooks API reference (start here to write a hook)**: [docs/HOOKS-API.md](docs/HOOKS-API.md)
 - Architecture, stage table, node contract: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Extending: hook vs preset node vs new preset: [docs/EXTENDING.md](docs/EXTENDING.md)
 
