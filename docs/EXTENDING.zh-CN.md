@@ -51,13 +51,16 @@ module.exports = {
 用户按内置名、npm 包名或本地路径加载：
 
 ```yaml
-presets:
-  - typography                  # 内置（lib/presets/）或 npm 包
-  - ./pipeline/my-preset        # 站点本地目录
-  - name: typography            # 带配置
-    config:
-      smart-quotes: { enable: false, priority: 15 }
+text_pipeline:
+  presets:
+    - typography                  # 内置（lib/presets/）或 npm 包
+    - ./pipeline/my-preset        # 站点本地目录
+    - name: typography            # 带配置
+      config:
+        smart-quotes: { enable: false, priority: 15 }
 ```
+
+用户侧的启用与配置分层见 [USING-PRESETS.zh-CN.md](USING-PRESETS.zh-CN.md)。
 
 node 级配置进 `ctx.config`（`config.<nodeName>` 节）；preset 级配置进 `ctx.presetConfig`。
 

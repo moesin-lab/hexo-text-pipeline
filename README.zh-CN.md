@@ -125,7 +125,7 @@ text_pipeline:
 
 ## 内置 preset：`obsidian`
 
-把 Obsidian Flavored Markdown 编译为 Hexo 友好输出。`presets: [obsidian]` 启用。
+把 Obsidian Flavored Markdown 编译为 Hexo 友好输出。在 `text_pipeline:` 键下写 `presets: [obsidian]` 启用——完整使用指南见 [docs/USING-PRESETS.zh-CN.md](docs/USING-PRESETS.zh-CN.md)。
 
 | Node | 语法 | 默认 | 行为 |
 |------|------|------|------|
@@ -139,13 +139,14 @@ text_pipeline:
 | `callout` | `> [!type] 标题` | **关** | `<div class="callout callout-type">`；主流渲染器/主题已多自带支持，所以默认关 |
 
 ```yaml
-presets:
-  - name: obsidian
-    config:
-      domain_prefix: ''                  # wikilink/mdlink/embed 的链接前缀
-      callout: { enable: true }          # 按需打开
-      embed: { asset_prefix: /images }   # 嵌入图片路径的前缀
-      mermaid: { theme: dark, priority: 15 }   # 任意 node：子配置 + priority 覆盖
+text_pipeline:
+  presets:
+    - name: obsidian
+      config:
+        domain_prefix: ''                  # wikilink/mdlink/embed 的链接前缀
+        callout: { enable: true }          # 按需打开
+        embed: { asset_prefix: /images }   # 嵌入图片路径的前缀
+        mermaid: { theme: dark, priority: 15 }   # 任意 node：子配置 + priority 覆盖
 ```
 
 ## 安装
@@ -182,6 +183,7 @@ npm test   # node --test
 ```
 
 - **单文件插件（写插件从这里开始）**：[docs/PLUGINS.zh-CN.md](docs/PLUGINS.zh-CN.md)
+- 使用 preset（启用、配置分层、调试）：[docs/USING-PRESETS.zh-CN.md](docs/USING-PRESETS.zh-CN.md)
 - Hooks 接口文档（stage 输入、ctx 字段、调试工作流）：[docs/HOOKS-API.zh-CN.md](docs/HOOKS-API.zh-CN.md)
 - 架构、stage 表、node 契约：[docs/ARCHITECTURE.zh-CN.md](docs/ARCHITECTURE.zh-CN.md)
 - 扩展指南：hook vs preset node vs 新 preset：[docs/EXTENDING.zh-CN.md](docs/EXTENDING.zh-CN.md)

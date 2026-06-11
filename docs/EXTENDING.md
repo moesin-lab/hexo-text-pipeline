@@ -51,13 +51,16 @@ module.exports = {
 Users load it by built-in name, npm package name, or local path:
 
 ```yaml
-presets:
-  - typography                  # built-in (lib/presets/) or npm package
-  - ./pipeline/my-preset        # site-local directory
-  - name: typography            # with config
-    config:
-      smart-quotes: { enable: false, priority: 15 }
+text_pipeline:
+  presets:
+    - typography                  # built-in (lib/presets/) or npm package
+    - ./pipeline/my-preset        # site-local directory
+    - name: typography            # with config
+      config:
+        smart-quotes: { enable: false, priority: 15 }
 ```
+
+User-side enabling and config layering: [USING-PRESETS.md](USING-PRESETS.md).
 
 Per-node config arrives as `ctx.config` (the `config.<nodeName>` section); preset-wide config as `ctx.presetConfig`.
 

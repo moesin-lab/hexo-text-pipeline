@@ -125,7 +125,7 @@ Each render cycle replaces the previous snapshot. Add the tap dir to `.gitignore
 
 ## Built-in preset: `obsidian`
 
-Compiles Obsidian Flavored Markdown for Hexo. Enable with `presets: [obsidian]`.
+Compiles Obsidian Flavored Markdown for Hexo. Enable with `presets: [obsidian]` under the `text_pipeline:` key — full walkthrough in [docs/USING-PRESETS.md](docs/USING-PRESETS.md).
 
 | Node | Syntax | Default | Behavior |
 |------|--------|---------|----------|
@@ -139,13 +139,14 @@ Compiles Obsidian Flavored Markdown for Hexo. Enable with `presets: [obsidian]`.
 | `callout` | `> [!type] Title` | **off** | `<div class="callout callout-type">`; off because most renderers/themes already support callouts |
 
 ```yaml
-presets:
-  - name: obsidian
-    config:
-      domain_prefix: ''                  # link prefix for wikilink/mdlink/embed
-      callout: { enable: true }          # opt in
-      embed: { asset_prefix: /images }   # prepended to embedded image paths
-      mermaid: { theme: dark, priority: 15 }   # any node: sub-config + priority override
+text_pipeline:
+  presets:
+    - name: obsidian
+      config:
+        domain_prefix: ''                  # link prefix for wikilink/mdlink/embed
+        callout: { enable: true }          # opt in
+        embed: { asset_prefix: /images }   # prepended to embedded image paths
+        mermaid: { theme: dark, priority: 15 }   # any node: sub-config + priority override
 ```
 
 ## Installation
@@ -182,6 +183,7 @@ npm test   # node --test
 ```
 
 - **Single-file plugins (start here to write a plugin)**: [docs/PLUGINS.md](docs/PLUGINS.md)
+- Using presets (enabling, config layers, debugging): [docs/USING-PRESETS.md](docs/USING-PRESETS.md)
 - Hooks API reference (stage inputs, ctx fields, debugging workflow): [docs/HOOKS-API.md](docs/HOOKS-API.md)
 - Architecture, stage table, node contract: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Extending: hook vs preset node vs new preset: [docs/EXTENDING.md](docs/EXTENDING.md)
