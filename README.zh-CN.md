@@ -6,19 +6,16 @@ Hexo 渲染管线的通用 hooks 总线。
 
 Hexo 渲染过程中所有"文本进、文本出"的执行点都被暴露为 stage。你用纯声明式配置往 stage 上挂东西——自己的脚本、shell 命令、或打包好的 preset。checker 系统全程兜底：配置错误在第一篇文章被处理之前就被发现，单个节点失败只会被跳过，构建永远不炸。
 
-设计目标：绝大多数小型 Hexo 插件做的事，本质都是"在管线的某个点变换一段文本"。这不该需要写插件、发包——一段脚本加一行配置就该够了，而且改完脚本下一次渲染就生效，即改即用。
+设计目标：绝大多数小型 Hexo 插件做的事，本质都是"在管线的某个点变换一段文本"。这不该需要发包、不该需要配置——**写插件就是写一个文件**。在站点根目录建 `text-pipeline/`，丢进去：
 
-```yaml
-text_pipeline:
-  presets:
-    - obsidian                       # 打包好的 node 集（"插件的插件"）
-  hooks:
-    - script: scripts/lazy-img.js    # 你的 JS：module.exports = (text, ctx) => text
-      stage: after_post_render
-    - command: python scripts/furigana.py   # 任何语言：stdin 进，stdout 出
-      stage: before_post_render
-      priority: 20
+```js
+// text-pipeline/arrow.js —— 这就是一个完整插件
+module.exports = {
+  replace: [[/-->/g, '→']]
+};
 ```
+
+下一次 `hexo generate` 它就在跑了：零配置自动发现，markdown 阶段自动跳过代码块，逻辑改动即改即用，坏了只会被跳过、构建永远不炸。完整契约见 [docs/PLUGINS.zh-CN.md](docs/PLUGINS.zh-CN.md)。
 
 ## Stage 表
 
@@ -31,9 +28,20 @@ text_pipeline:
 
 与 [Hexo filter API](https://hexo.io/api/filter) 一一对应。非文本的 filter（`template_locals`、`server_middleware` 等）刻意不在范围内。
 
-## 三种挂载方式
+## 四种挂载方式
 
-**1. 本地脚本** —— `module.exports = (text, ctx) => text`，相对 Hexo 根目录解析，每次执行重新加载。改完文件，下一次渲染就生效。不用重启，不用安装。
+**1. 单文件插件（默认答案）** —— `text-pipeline/` 目录里每个 `.js` 文件自动挂载。导出与统一契约同形的 node 对象（`name` 缺省取文件名），`replace` 规则表是 `convert` 的声明式写法；`_config.yml` 可按插件名覆盖 `enable` / `slot` / `priority`，其余子配置进 `ctx.config`。详见 [docs/PLUGINS.zh-CN.md](docs/PLUGINS.zh-CN.md)。
+
+```js
+// text-pipeline/ruby.js
+module.exports = {
+  stage: 'before_post_render',
+  match: '\\{ruby',
+  convert: (text, ctx) => text.replace(/\{ruby (.+?)\}/g, '<ruby>$1</ruby>')
+};
+```
+
+**2. 本地脚本（hook）** —— `module.exports = (text, ctx) => text`，相对 Hexo 根目录解析，每次执行重新加载。改完文件，下一次渲染就生效。想要纯函数形态、placement 写在 YAML 里时用它。
 
 ```yaml
 hooks:
@@ -41,7 +49,7 @@ hooks:
     stage: after_render:html
 ```
 
-**2. 外部命令** —— 正文从 stdin 进，变换结果从 stdout 出，任何语言。上下文走环境变量：`HTP_STAGE` / `HTP_SLOT` 恒有，post 类 stage 给 `HTP_POST_SOURCE` / `HTP_POST_PATH` / `HTP_POST_TITLE`，string 类给 `HTP_FILE_PATH`。
+**3. 外部命令** —— 正文从 stdin 进，变换结果从 stdout 出，任何语言。上下文走环境变量：`HTP_STAGE` / `HTP_SLOT` 恒有，post 类 stage 给 `HTP_POST_SOURCE` / `HTP_POST_PATH` / `HTP_POST_TITLE`，string 类给 `HTP_FILE_PATH`。
 
 ```yaml
 hooks:
@@ -54,7 +62,7 @@ hooks:
     slot: late                  # 可选：late（默认，看到该 stage 最终文本）| early（原始文本）
 ```
 
-**3. 程序化注册** —— 其他插件（或站点 `scripts/` 目录里的脚本）可以直接注册 node：
+**4. 程序化注册** —— 其他插件（或站点 `scripts/` 目录里的脚本）可以直接注册 node：
 
 ```js
 hexo.textPipeline.register({
@@ -157,6 +165,8 @@ text_pipeline:
   inject_js: true    # node 的前端脚本（如 mermaid 加载器）
   presets: []        # 内置名 | npm 包 | ./本地路径 | { name, config }
   hooks: []          # { script | command, stage, slot, priority, name, timeout, match, enable }
+  plugins_dir: text-pipeline   # 单文件插件目录；false 关闭自动发现
+  plugins: {}        # 按插件名覆盖：{ <name>: { enable, slot, priority, ...其余进 ctx.config } }
   tap:               # 调试模式：落盘每个 stage 的文本快照（见"开发 hook"）
     enable: false
     match: ''
@@ -171,7 +181,8 @@ text_pipeline:
 npm test   # node --test
 ```
 
-- **Hooks 接口文档（写 hook 从这里开始）**：[docs/HOOKS-API.zh-CN.md](docs/HOOKS-API.zh-CN.md)
+- **单文件插件（写插件从这里开始）**：[docs/PLUGINS.zh-CN.md](docs/PLUGINS.zh-CN.md)
+- Hooks 接口文档（stage 输入、ctx 字段、调试工作流）：[docs/HOOKS-API.zh-CN.md](docs/HOOKS-API.zh-CN.md)
 - 架构、stage 表、node 契约：[docs/ARCHITECTURE.zh-CN.md](docs/ARCHITECTURE.zh-CN.md)
 - 扩展指南：hook vs preset node vs 新 preset：[docs/EXTENDING.zh-CN.md](docs/EXTENDING.zh-CN.md)
 

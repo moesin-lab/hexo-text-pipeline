@@ -2,7 +2,7 @@
 
 # Hooks 接口文档
 
-开发自定义 hook 需要的全部信息。何时选 hook、何时写 preset node，见 [EXTENDING.zh-CN.md](EXTENDING.zh-CN.md)。
+开发自定义 hook 需要的全部信息。多数站点级扩展现在更适合写成**单文件插件**（`text-pipeline/` 目录，零配置自动发现，见 [PLUGINS.zh-CN.md](PLUGINS.zh-CN.md)）；本文的 stage 输入形态、`ctx` 字段、调试工作流对两者同样适用。何时选哪种，见 [EXTENDING.zh-CN.md](EXTENDING.zh-CN.md)。
 
 ## 开发工作流
 
@@ -111,7 +111,7 @@ module.exports = (text, ctx) =>
 
 ### 重载语义（即改即用）
 
-脚本文件**以及它 require 的本地模块**（`./helper`，不含 node_modules）每次执行都重新加载。`hexo s` 下保存文件，下一次渲染就用新代码。不要在脚本里放模块级状态——两次执行之间不保留。
+脚本文件**以及它 require 的本地模块**（`./helper`，不含 node_modules）每次执行都重新加载。`hexo s` 下保存文件，下一次渲染就用新代码。不要在脚本里放模块级状态——两次执行之间不保留。单文件插件共享同一套失效语义（其热重载边界见 [PLUGINS.zh-CN.md](PLUGINS.zh-CN.md)）。
 
 ## Command hook
 

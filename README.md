@@ -6,19 +6,16 @@ A general-purpose hooks bus for Hexo's render pipeline.
 
 Every text-in/text-out point of Hexo's rendering process is exposed as a stage. You hang things on stages — your own scripts, shell commands, or packaged presets — through plain declarative config. A checker system backstops everything: misconfiguration is caught before the first post renders, and a failing node is skipped, never your build.
 
-The design goal: most of what a small Hexo plugin does is "transform some text at some point of the pipeline". That shouldn't require writing and publishing a plugin — a script plus one line of config should be enough, and editing the script should take effect on the next render with no restart.
+The design goal: most of what a small Hexo plugin does is "transform some text at some point of the pipeline". That shouldn't require publishing a package, or even config — **writing a plugin is writing one file**. Create `text-pipeline/` at your site root and drop this in:
 
-```yaml
-text_pipeline:
-  presets:
-    - obsidian                       # packaged node sets ("plugins of the plugin")
-  hooks:
-    - script: scripts/lazy-img.js    # your JS: module.exports = (text, ctx) => text
-      stage: after_post_render
-    - command: python scripts/furigana.py   # any language: stdin in, stdout out
-      stage: before_post_render
-      priority: 20
+```js
+// text-pipeline/arrow.js — this is a complete plugin
+module.exports = {
+  replace: [[/-->/g, '→']]
+};
 ```
+
+It runs on the next `hexo generate`: zero-config discovery, code blocks automatically protected in the markdown stage, logic edits apply on the next render, and a broken plugin is skipped — never your build. Full contract: [docs/PLUGINS.md](docs/PLUGINS.md).
 
 ## Stages
 
@@ -31,9 +28,20 @@ text_pipeline:
 
 These map 1:1 to [Hexo's filter API](https://hexo.io/api/filter). Non-text filters (`template_locals`, `server_middleware`, …) are deliberately out of scope.
 
-## Hooks: three ways to hang a node
+## Four ways to hang a node
 
-**1. Local script** — `module.exports = (text, ctx) => text`, resolved against the Hexo root, re-required on every run. Edit the file, the next render picks it up. No restart, no install.
+**1. Single-file plugin (the default answer)** — every `.js` file in the `text-pipeline/` directory mounts automatically. Export a node object in the unified contract shape (`name` defaults to the filename); a `replace` rule list is the declarative form of `convert`; `_config.yml` can override `enable` / `slot` / `priority` per plugin name, remaining sub-config reaches the plugin as `ctx.config`. Details: [docs/PLUGINS.md](docs/PLUGINS.md).
+
+```js
+// text-pipeline/ruby.js
+module.exports = {
+  stage: 'before_post_render',
+  match: '\\{ruby',
+  convert: (text, ctx) => text.replace(/\{ruby (.+?)\}/g, '<ruby>$1</ruby>')
+};
+```
+
+**2. Local script (hook)** — `module.exports = (text, ctx) => text`, resolved against the Hexo root, re-required on every run. Edit the file, the next render picks it up. Use it when you want the plain-function shape with placement living in YAML.
 
 ```yaml
 hooks:
@@ -41,7 +49,7 @@ hooks:
     stage: after_render:html
 ```
 
-**2. External command** — content on stdin, transformed content on stdout. Any language. Context via env vars: `HTP_STAGE` / `HTP_SLOT` always; `HTP_POST_SOURCE` / `HTP_POST_PATH` / `HTP_POST_TITLE` on post stages, `HTP_FILE_PATH` on string stages.
+**3. External command** — content on stdin, transformed content on stdout. Any language. Context via env vars: `HTP_STAGE` / `HTP_SLOT` always; `HTP_POST_SOURCE` / `HTP_POST_PATH` / `HTP_POST_TITLE` on post stages, `HTP_FILE_PATH` on string stages.
 
 ```yaml
 hooks:
@@ -54,7 +62,7 @@ hooks:
     slot: late                  # optional: late (default, sees the stage's final text) | early (raw text)
 ```
 
-**3. Programmatic** — other plugins (or a script in your site's `scripts/` dir) can register nodes directly:
+**4. Programmatic** — other plugins (or a script in your site's `scripts/` dir) can register nodes directly:
 
 ```js
 hexo.textPipeline.register({
@@ -157,6 +165,8 @@ text_pipeline:
   inject_js: true    # nodes' frontend scripts (e.g. mermaid loader)
   presets: []        # built-in name | npm package | ./local/path | { name, config }
   hooks: []          # { script | command, stage, slot, priority, name, timeout, match, enable }
+  plugins_dir: text-pipeline   # single-file plugin directory; false disables discovery
+  plugins: {}        # per-plugin overrides: { <name>: { enable, slot, priority, ...rest lands in ctx.config } }
   tap:               # debug mode: dump per-stage text snapshots (see "Developing hooks")
     enable: false
     match: ''
@@ -171,7 +181,8 @@ Zero runtime dependencies, Node >= 16.
 npm test   # node --test
 ```
 
-- **Hooks API reference (start here to write a hook)**: [docs/HOOKS-API.md](docs/HOOKS-API.md)
+- **Single-file plugins (start here to write a plugin)**: [docs/PLUGINS.md](docs/PLUGINS.md)
+- Hooks API reference (stage inputs, ctx fields, debugging workflow): [docs/HOOKS-API.md](docs/HOOKS-API.md)
 - Architecture, stage table, node contract: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Extending: hook vs preset node vs new preset: [docs/EXTENDING.md](docs/EXTENDING.md)
 

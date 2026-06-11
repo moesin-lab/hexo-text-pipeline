@@ -4,20 +4,22 @@
 
 三个升级层级。从最上面开始；只有上一级真的不够用时才往下走。
 
-## 第 1 级：站点仓库里的用户 hook（默认答案）
+## 第 1 级：站点里的单文件插件（默认答案）
 
-站点专属的变换 → 完全不需要碰这个仓库：
+站点专属的变换 → 完全不需要碰这个仓库，也不需要碰 `_config.yml`——在站点根目录的 `text-pipeline/` 里丢一个文件：
 
-```yaml
-text_pipeline:
-  hooks:
-    - script: scripts/my-transform.js   # module.exports = (text, ctx) => text
-      stage: before_post_render
+```js
+// text-pipeline/arrow.js
+module.exports = {
+  replace: [[/-->/g, '→']]   // 或 convert: (text, ctx) => text
+};
 ```
 
-改脚本、重新渲染、完事。markdown 阶段做行内替换时用 `ctx.utils.replaceOutsideCode(text, fn)` 跳过代码块。非 JS 逻辑走 `command:`（stdin → stdout）。
+保存、重新渲染、完事（markdown 阶段的 `replace` 自动跳过代码块；手写 convert 时用 `ctx.utils.replaceOutsideCode(text, fn)`）。完整契约——name 推导、配置覆盖、热重载边界：[PLUGINS.zh-CN.md](PLUGINS.zh-CN.md)。
 
-完整契约——各 stage 输入形态、`ctx` 字段、环境变量、调试工作流：[HOOKS-API.zh-CN.md](HOOKS-API.zh-CN.md)。
+### 第 1.5 级：hooks（函数形态 / 非 JS 逻辑）
+
+只想导出一个纯函数、让 placement 留在 YAML 里 → `hooks:` 的 `script:` 条目；非 JS 逻辑 → `command:`（stdin → stdout，任何语言）。各 stage 输入形态、`ctx` 字段、环境变量、调试工作流：[HOOKS-API.zh-CN.md](HOOKS-API.zh-CN.md)。
 
 ## 第 2 级：往现有 preset 加 node
 
@@ -28,7 +30,7 @@ text_pipeline:
 3. **选 stage**（全表见 `lib/core/stages.js`）：
    - 结果仍是 markdown（如 `==高亮==` → `<mark>`）→ `before_post_render`；行内替换必须用 `markdown-guard` 的 `replaceOutsideCode` 包住
    - 依赖渲染后的 HTML 结构（如 callout 基于 `<blockquote>`）→ `after_post_render`
-4. **实现**：解析放 `parse.js`，输出放 `render.js`（简单语法可全放 `index.js`）。默认样式走 `css` 字段，前端加载脚本走 `js`。如果多数渲染器已自带该行为，出厂 `enabledByDefault: false`。
+4. **实现**：解析放 `parse.js`，输出放 `render.js`（简单语法可全放 `index.js`）。纯正则替换可以直接用 `replace` 规则表代替 `convert`（语义见 [PLUGINS.zh-CN.md](PLUGINS.zh-CN.md)，preset node 同样可用）。默认样式走 `css` 字段，前端加载脚本走 `js`。如果多数渲染器已自带该行为，出厂 `enabledByDefault: false`。
 5. **注册**：在 preset 的 `nodes` 数组（`lib/presets/obsidian/index.js`）加一行——数组顺序就是同 priority 下的执行顺序。
 6. **验证**：`npm test` 全绿；`hexo pipeline` 里 node 出现在预期位置。
 7. **写文档**：更新中英两份 README 的 preset node 表。

@@ -65,11 +65,12 @@ node 用 `slot: 'early' | 'late'` 在两个挂点间移动。
 {
   name: 'callout',            // 唯一标识；preset 的 node 自动带 '<preset>:' 前缀
   stage: 'after_post_render', // stage 表里的任意键，默认 before_post_render
-  slot: 'early',              // 'early'（preset 默认）| 'late'（hook / api 默认）
+  slot: 'early',              // 'early'（preset 默认）| 'late'（hook / plugin / api 默认）
   priority: 10,               // 同挂点内小者先跑，同级按注册顺序
   enabledByDefault: false,    // 可选；用户的 enable 永远优先
   test(text) {},              // 可选，廉价预判；match 正则是它的声明式写法
-  convert(text, ctx) {},      // 纯函数：文本进、文本出
+  convert(text, ctx) {},      // 纯函数：文本进、文本出；replace 规则表是它的声明式写法
+                              // （markdown 阶段自动套 markdown-guard）
   css: '...',                 // 可选：注入 head_end（inject_css）
   js: (config) => '...',      // 可选：注入 body_end（inject_js）
 }
@@ -77,11 +78,14 @@ node 用 `slot: 'early' | 'late'` 在两个挂点间移动。
 
 `ctx = { hexo, stage, pluginConfig, utils, log }`，外加：`post` 类 stage 有 `ctx.post`、`string` 类有 `ctx.file`（`{ path }`）；`config` / `presetConfig` 仅在 node 自带配置时出现（即 preset node——hook 的 ctx 上没有这两个字段）。
 
-三种挂载机制产出完全相同的形状，放置字段（stage / slot / priority / match）的默认值与校验集中在 `node-contract.js`，三条路径共用一份规则：
+四种挂载机制产出完全相同的形状，放置字段（stage / slot / priority / match）的默认值与校验集中在 `node-contract.js`，四条路径共用一份规则：
 
 - **preset loader**：名字加命名空间（`obsidian:callout`），从 preset 配置节解析 node 级 config/enable/slot/priority，收集 `init(hexo)` 一次性副作用
 - **hook loaders**：把脚本路径或命令字符串包装成 `convert`
+- **plugin-dir loader**：站点 `text-pipeline/` 目录零配置自动发现，单文件即插件（name 缺省取文件名，`plugins.<name>` 配置覆盖，convert/replace/test/match 热重载）——见 [PLUGINS.zh-CN.md](PLUGINS.zh-CN.md)
 - **公开 API**：`hexo.textPipeline.register(node)` 随时校验并加入（重名同样告警）——engine 在 filter 执行时懒查注册表，晚注册天然生效
+
+加载顺序 preset → hook → plugin，同 stage 同挂点同 priority 时即注册顺序。
 
 ## checker 系统（三道防线）
 
@@ -97,7 +101,8 @@ node 用 `slot: 'early' | 'late'` 在两个挂点间移动。
 |------|------|
 | 通用 hooks 总线是产品本体，Obsidian 是 preset | 绝大多数小型 Hexo 插件本质是"在管线某点变换文本"；总线把它变成一段脚本加一行配置。Obsidian 编译只是第一个打包好的 node 集 |
 | preset 节点 / hook / API 节点共用一个契约 | engine 只调度一种东西，checker 只检查一种东西，文档只描述一种东西，没有特权路径 |
-| 放置字段归一化单点（`node-contract.js`） | 三条注册路径曾各自处理 stage/slot/priority/match 的默认值与校验，同一字段在不同入口行为分裂（如 slot 默认值不一致）；收敛成一份规则后，差异只剩按角色设的 slot 默认值，且集中在一张表里可见 |
+| 放置字段归一化单点（`node-contract.js`） | 注册路径曾各自处理 stage/slot/priority/match 的默认值与校验，同一字段在不同入口行为分裂（如 slot 默认值不一致）；收敛成一份规则后，差异只剩按角色设的 slot 默认值，且集中在一张表里可见 |
+| 单文件插件目录（plugin-dir，零配置自动发现） | "写插件 = 写一个文件"：站点级扩展不该需要发包，也不该需要两处声明（脚本 + YAML 条目）；replace 是 convert 的声明式写法（如同 match 之于 test），常见正则替换连函数都不用写。placement 注册期固化、逻辑热重载——与 hexo filter 不可反注册的事实对齐 |
 | priority 数字 + 注册顺序兜底 | 与 Hexo 自己的 filter 优先级模型一致；要紧时显式，不要紧时无感。doctor 直接打印解析后顺序，永远不用猜 |
 | 双挂点：preset 早、hook 晚 | preset 需要原始文本（真实站点验证过：hexo 的 `backtick_code_block` 优先级 10，否则会先把围栏代码块吞掉，mermaid 看不到）；hook 想要最终文本、也不该误伤代码。把 hexo 内置夹在中间同时满足两边默认，`slot` 字段随时覆盖 |
 | script hook 每次执行重新 require | 即改即用：`hexo server` 下改脚本，下一次渲染就生效——"用脚本接管"可用性的关键反馈回路 |

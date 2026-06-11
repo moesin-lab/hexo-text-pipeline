@@ -2,7 +2,7 @@
 
 # Hooks API reference
 
-Everything you need to develop a custom hook. For when to choose a hook vs a preset node, see [EXTENDING.md](EXTENDING.md).
+Everything you need to develop a custom hook. Most site-level extensions are now better written as a **single-file plugin** (the `text-pipeline/` directory, zero-config discovery — see [PLUGINS.md](PLUGINS.md)); the stage inputs, `ctx` fields and debugging workflow in this document apply to both. For choosing between them, see [EXTENDING.md](EXTENDING.md).
 
 ## The development workflow
 
@@ -111,7 +111,7 @@ module.exports = (text, ctx) =>
 
 ### Reload semantics (edit-and-use)
 
-The script file **and any local modules it requires** (`./helper`, not `node_modules`) are re-loaded on every execution. Under `hexo s`, save the file and the next render uses the new code. Keep module-level state out of scripts — it does not survive between runs.
+The script file **and any local modules it requires** (`./helper`, not `node_modules`) are re-loaded on every execution. Under `hexo s`, save the file and the next render uses the new code. Keep module-level state out of scripts — it does not survive between runs. Single-file plugins share the same invalidation semantics (their hot-reload boundaries are in [PLUGINS.md](PLUGINS.md)).
 
 ## Command hooks
 

@@ -65,11 +65,12 @@ Adding a stage = one table entry; engine, checker, and doctor pick it up automat
 {
   name: 'callout',            // unique id; preset nodes get a '<preset>:' prefix automatically
   stage: 'after_post_render', // any key of the stage table, default before_post_render
-  slot: 'early',              // 'early' (default for presets) | 'late' (default for hooks / api)
+  slot: 'early',              // 'early' (default for presets) | 'late' (default for hooks / plugins / api)
   priority: 10,               // lower runs first within the slot; ties broken by registration order
   enabledByDefault: false,    // optional; the user's enable always wins
   test(text) {},              // optional cheap pre-check; a match regex is its declarative form
-  convert(text, ctx) {},      // pure function: text in, text out
+  convert(text, ctx) {},      // pure function: text in, text out; a replace rule list is its
+                              // declarative form (markdown-guard applied automatically on the markdown stage)
   css: '...',                 // optional: injected into head_end (inject_css)
   js: (config) => '...',      // optional: injected into body_end (inject_js)
 }
@@ -77,11 +78,14 @@ Adding a stage = one table entry; engine, checker, and doctor pick it up automat
 
 `ctx = { hexo, stage, pluginConfig, utils, log }`, plus: `post`-kind stages get `ctx.post`, `string`-kind stages get `ctx.file` (`{ path }`); `config` / `presetConfig` appear only when the node carries them (i.e. preset nodes — a hook's ctx has neither).
 
-All three mounting mechanisms produce this exact shape, and the placement fields (stage / slot / priority / match) share a single source of defaults and validation in `node-contract.js`:
+All four mounting mechanisms produce this exact shape, and the placement fields (stage / slot / priority / match) share a single source of defaults and validation in `node-contract.js`:
 
 - **preset loader**: namespaces names (`obsidian:callout`), resolves per-node config/enable/slot/priority from the preset's config section, collects `init(hexo)` side-effect hooks
 - **hook loaders**: wrap a script path or command string into a `convert`
+- **plugin-dir loader**: zero-config discovery of the site's `text-pipeline/` directory, one file = one plugin (name defaults to the filename, `plugins.<name>` config overrides, convert/replace/test/match hot-reload) — see [PLUGINS.md](PLUGINS.md)
 - **public API**: `hexo.textPipeline.register(node)` validates and adds at any time (duplicate names warn here too) — the engine looks the registry up lazily at execution, so late registration just works
+
+Load order is preset → hook → plugin; within the same stage, slot and priority, that is the tie-break order.
 
 ## The checker system (three lines of defense)
 
@@ -97,7 +101,8 @@ All three mounting mechanisms produce this exact shape, and the placement fields
 |----------|-----------|
 | Generic hooks bus as the product; Obsidian as a preset | Most small Hexo plugins are "transform text at a pipeline point"; the bus makes that a script + one config line. The Obsidian compiler is just the first packaged node set |
 | One contract for preset nodes / hooks / API nodes | The engine schedules one thing; checkers check one thing; docs document one thing. No privileged path |
-| Single normalization point for placement fields (`node-contract.js`) | The three registration paths used to normalize stage/slot/priority/match independently, so the same field behaved differently per entry point (e.g. inconsistent slot defaults); with one shared rule set, the only remaining difference is the per-role slot default, visible in one table |
+| Single normalization point for placement fields (`node-contract.js`) | The registration paths used to normalize stage/slot/priority/match independently, so the same field behaved differently per entry point (e.g. inconsistent slot defaults); with one shared rule set, the only remaining difference is the per-role slot default, visible in one table |
+| Single-file plugin directory (plugin-dir, zero-config discovery) | "Writing a plugin = writing one file": a site-level extension shouldn't require publishing a package, nor two declarations (script + YAML entry); `replace` is the declarative form of `convert` (as `match` is of `test`), so common regex transforms need no function at all. Placement is fixed at registration, logic hot-reloads — aligned with the fact that hexo filters can't be unregistered |
 | Priority numbers + registration order for ties | Matches Hexo's own filter priority model; explicit when it matters, unobtrusive when it doesn't. Doctor shows the resolved order so it's never a guess |
 | Dual slots: presets early, hooks late | Presets need raw text (verified on a real site: hexo's `backtick_code_block` at priority 10 otherwise swallows fenced blocks before mermaid sees them); hooks want the final text and must not corrupt code accidentally. Sandwiching hexo internals serves both defaults, `slot` overrides either |
 | Script hooks re-required on every run | Edit-and-use: under `hexo server`, editing the script takes effect on the next render. The feedback loop that makes "take over with a script" practical |
