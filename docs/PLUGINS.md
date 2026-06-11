@@ -83,7 +83,7 @@ text_pipeline:
 
 ## Hot-reload boundaries
 
-**Edit-and-use** (save under `hexo s`, next render applies): logic changes to `convert` / `replace` / `test` / `match`, and any local helper modules the plugin requires (`./_shared`, not node_modules).
+**Edit-and-use** (save under `hexo s`, next render applies): logic changes to `convert` / `replace` / `test` / `match`, and any local helper modules the plugin requires (`./_shared`, not node_modules). Note that hexo only watches `source/` and themes — saving the plugin file itself does not trigger a re-render; you need one to happen to see the effect (re-save the target post, or verify directly with `hexo pipeline --dry-run`).
 
 **Restart hexo** in three cases (each maps to the fact that hexo filters can't be unregistered and injection is one-shot):
 

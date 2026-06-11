@@ -83,7 +83,7 @@ text_pipeline:
 
 ## 热重载边界
 
-**即改即用**（`hexo s` 下保存文件，下一次渲染生效）：`convert` / `replace` / `test` / `match` 的逻辑改动，以及插件 `require` 的本地辅助模块（`./_shared`，不含 node_modules）。
+**即改即用**（`hexo s` 下保存文件，下一次渲染生效）：`convert` / `replace` / `test` / `match` 的逻辑改动，以及插件 `require` 的本地辅助模块（`./_shared`，不含 node_modules）。注意 hexo 只监听 `source/` 和主题——保存插件文件本身不会触发重新渲染，需要有一次新渲染才能看到效果（重存一下目标文章即可，或用 `hexo pipeline --dry-run` 直接验证）。
 
 **需要重启 hexo** 的三种情况（与"hexo filter 注册后不可反注册、注入一次性"的事实对应）：
 

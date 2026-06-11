@@ -254,6 +254,24 @@ test('static checker flags bad plugins_dir / plugins shapes', () => {
   const issues = checkPluginConfig({ plugins_dir: 42, plugins: ['nope'] });
   assert.ok(issues.some((i) => i.level === 'error' && i.message.includes('plugins_dir')));
   assert.ok(issues.some((i) => i.level === 'error' && i.message.includes('plugins must be a map')));
+
+  // `arrow: false` 意图明显（想关掉）但会被静默忽略——必须指条明路
+  const shorthand = checkPluginConfig({ plugins: { arrow: false } });
+  assert.ok(shorthand.some((i) => i.message.includes('plugins.arrow') && i.message.includes('{ enable: false }')));
+});
+
+test('overrides dangling on a missing plugin dir still warn', () => {
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'htp-dangle-'));
+  try {
+    const ctx = createHexoMock({
+      config: { text_pipeline: { plugins: { ghost: { enable: false } } } },
+      baseDir: empty
+    });
+    plugin(ctx.hexo);
+    assert.ok(ctx.warnings.some((w) => w.includes('plugins.ghost') && w.includes('matches no discovered plugin')));
+  } finally {
+    fs.rmSync(empty, { recursive: true, force: true });
+  }
 });
 
 // ---- 热重载与兜底 ----

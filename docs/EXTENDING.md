@@ -2,7 +2,7 @@
 
 # Extending the pipeline
 
-Three escalation levels. Start at the top; only move down when the level above genuinely doesn't fit.
+Organized as escalation levels. Start at the top; only move down when the level above genuinely doesn't fit.
 
 ## Level 1: a single-file plugin in your site (the default answer)
 
