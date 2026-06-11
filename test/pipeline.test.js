@@ -202,6 +202,24 @@ test('runtime guard trips the circuit breaker after consecutive failures', () =>
   assert.equal(guard.run(node, 'y', ctx), 'y');
 });
 
+test('circuit breaker resets each generate cycle, so a fixed script comes back', () => {
+  const ctx = createHexoMock({
+    config: { text_pipeline: { hooks: [{ command: 'node -e "process.exit(1)"', name: 'boom' }] } }
+  });
+  plugin(ctx.hexo);
+
+  const handler = ctx.handlers.get('before_post_render');
+  for (let i = 0; i < FAILURE_TRIP_THRESHOLD; i += 1) {
+    handler({ content: 'x' });
+  }
+  const node = ctx.hexo._textPipeline.registry.forStage('before_post_render')[0];
+  assert.equal(ctx.hexo._textPipeline.guard.isTripped(node), true);
+
+  // 新一轮 generate：熔断清零（脚本可能已被修好）
+  ctx.handlers.get('before_generate')();
+  assert.equal(ctx.hexo._textPipeline.guard.isTripped(node), false);
+});
+
 test('runtime guard warns on suspicious output but accepts it', () => {
   const warnings = [];
   const log = { warn: (m) => warnings.push(m), debug() {} };
