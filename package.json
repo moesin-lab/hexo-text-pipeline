@@ -1,7 +1,7 @@
 {
   "name": "hexo-obsidian-compiler",
   "version": "0.1.0",
-  "description": "Convert Obsidian Flavored Markdown (callouts, wiki links, and more) into Hexo-friendly output via pluggable converters.",
+  "description": "A text-transform bus for Hexo's render pipeline: built-in Obsidian Flavored Markdown converters (wiki links, comments, mermaid, callouts) plus user hooks that hand any render stage to your own scripts, text in / text out.",
   "main": "index.js",
   "files": [
     "index.js",
@@ -19,7 +19,10 @@
     "obsidian",
     "callout",
     "wikilink",
-    "obsidian-flavored-markdown"
+    "mermaid",
+    "obsidian-flavored-markdown",
+    "hooks",
+    "pipeline"
   ],
   "author": "Sentixxx",
   "license": "MIT",

@@ -17,20 +17,38 @@ test('does not register filters when plugin is disabled', () => {
 
 test('disabling a single converter keeps the others working', () => {
   const ctx = createHexoMock({
-    config: { obsidian_compiler: { converters: { wikilink: { enable: false } } } },
+    config: {
+      obsidian_compiler: {
+        converters: { wikilink: { enable: false }, callout: { enable: true } }
+      }
+    },
     posts: [{ title: 'Hello Hexo', slug: 'hello-hexo', abbrlink: 'abcd1234' }]
   });
 
   plugin(ctx.hexo);
   ctx.handlers.get('before_generate')();
 
-  // wikilink 是 before 阶段唯一的 converter，禁用后该阶段 filter 不再注册
-  assert.equal(ctx.handlers.get('before_post_render'), undefined);
+  // wikilink 被禁用：[[...]] 原样保留，同阶段其他 converter 不受影响
+  const md = ctx.handlers.get('before_post_render')({
+    content: '[[Hello Hexo]] %%gone%%'
+  }).content;
+  assert.equal(md, '[[Hello Hexo]] ');
 
   const html = ctx.handlers.get('after_post_render')({
     content: '<blockquote>\n<p>[!note] T</p>\n</blockquote>'
   }).content;
   assert.ok(html.includes('data-callout="note"'));
+});
+
+test('callout is disabled by default, explicit enable overrides', () => {
+  const ctx = createHexoMock({ config: { obsidian_compiler: {} } });
+  plugin(ctx.hexo);
+
+  const input = '<blockquote>\n<p>[!note] T</p>\n</blockquote>';
+  const html = ctx.handlers.get('after_post_render')
+    ? ctx.handlers.get('after_post_render')({ content: input }).content
+    : input;
+  assert.equal(html, input);
 });
 
 test('a throwing converter is skipped without breaking the stage', () => {
@@ -55,14 +73,19 @@ test('a throwing converter is skipped without breaking the stage', () => {
   assert.equal(result, 'OK');
 });
 
-test('injects converter css into head_end, unless inject_css is false', () => {
-  const withCss = createHexoMock({ config: { obsidian_compiler: {} } });
-  plugin(withCss.hexo);
-  assert.ok(withCss.injected.some((item) => item.entry === 'head_end' && item.value.includes('.callout')));
+test('injects converter css/js, unless inject_css / inject_js are false', () => {
+  const withAssets = createHexoMock({
+    config: { obsidian_compiler: { converters: { callout: { enable: true } } } }
+  });
+  plugin(withAssets.hexo);
+  assert.ok(withAssets.injected.some((item) => item.entry === 'head_end' && item.value.includes('.callout')));
+  assert.ok(withAssets.injected.some((item) => item.entry === 'body_end' && item.value.includes('mermaid')));
 
-  const noCss = createHexoMock({ config: { obsidian_compiler: { inject_css: false } } });
-  plugin(noCss.hexo);
-  assert.equal(noCss.injected.length, 0);
+  const noAssets = createHexoMock({
+    config: { obsidian_compiler: { inject_css: false, inject_js: false } }
+  });
+  plugin(noAssets.hexo);
+  assert.equal(noAssets.injected.length, 0);
 });
 
 test('auto-registers when loaded with a global hexo context', () => {
