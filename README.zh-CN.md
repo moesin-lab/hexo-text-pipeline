@@ -41,7 +41,7 @@ hooks:
     stage: after_render:html
 ```
 
-**2. 外部命令** —— 正文从 stdin 进，变换结果从 stdout 出，任何语言。上下文走环境变量 `HTP_STAGE` / `HTP_POST_SOURCE` / `HTP_POST_PATH` / `HTP_POST_TITLE`。
+**2. 外部命令** —— 正文从 stdin 进，变换结果从 stdout 出，任何语言。上下文走环境变量：`HTP_STAGE` / `HTP_SLOT` 恒有，post 类 stage 给 `HTP_POST_SOURCE` / `HTP_POST_PATH` / `HTP_POST_TITLE`，string 类给 `HTP_FILE_PATH`。
 
 ```yaml
 hooks:
@@ -65,7 +65,7 @@ hexo.textPipeline.register({
 });
 ```
 
-`ctx` 为 `{ hexo, post, stage, config, presetConfig, pluginConfig, utils, log }`；`ctx.utils` 自带 `replaceOutsideCode` / `segmentInlineCode`，在 markdown 阶段做行内替换时安全跳过代码块。
+注册的默认值与校验和 hooks 同一套规则（slot 默认 `late`，也支持 `match` 正则预判）。`ctx` 为 `{ hexo, stage, pluginConfig, utils, log }`，post 类 stage 另有 `ctx.post`、string 类有 `ctx.file`；`ctx.utils` 自带 `replaceOutsideCode` / `segmentInlineCode`，在 markdown 阶段做行内替换时安全跳过代码块。
 
 ### 执行顺序：每个 stage 两个挂点
 

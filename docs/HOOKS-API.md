@@ -30,6 +30,11 @@ What your hook actually receives depends on its **slot**:
 - `slot: late` (the default for hooks) — runs **after** Hexo internals and other plugins. On `before_post_render` that means preset nodes have already run, and fenced code blocks are already swallowed into `<hexoPostRenderCodeBlock>` placeholders by the highlighter — you can't accidentally corrupt code, and you see what will really be rendered.
 - `slot: early` — runs **before** everything, on the raw text. Pick this when you need intact fenced blocks, raw `%%comments%%`, etc.
 
+What a slot really is: for every stage the plugin registers **two separate Hexo filters** — early at a priority below Hexo's internals, late at a priority above them. Two consequences:
+
+- `priority` orders nodes **within one slot only** and never crosses slots — an early node with priority 100 still runs before a late node with priority 1;
+- Hexo's internal filters and other plugins run **between** the two slots. They are outside this plugin's control and don't appear in `hexo pipeline`'s order listing.
+
 Sample `before_post_render` **early** input (captured with tap):
 
 ```markdown
@@ -81,13 +86,15 @@ module.exports = function (text, ctx) {
 
 | Field | Content |
 |-------|---------|
-| `ctx.post` | the post object (`post` stages) or `{ path }` (`string` stages) — read `ctx.post.title`, `ctx.post.source`, frontmatter fields |
+| `ctx.post` | **`post` stages only** (`before/after_post_render`): the post object — read `ctx.post.title`, `ctx.post.source`, frontmatter fields |
+| `ctx.file` | **`string` stages only** (`after_render:*`): `{ path }` of the output file |
 | `ctx.stage` | the current stage name (one hook file can serve several stages) |
 | `ctx.hexo` | the live Hexo instance (`ctx.hexo.config`, `ctx.hexo.locals.get('posts')`, …) |
-| `ctx.config` | your hook has no sub-config section; always `{}` (preset nodes get theirs here) |
 | `ctx.pluginConfig` | the normalized `text_pipeline` config |
 | `ctx.utils` | helpers, see below |
 | `ctx.log` | `ctx.log.warn(msg)` / `ctx.log.debug(msg)`, prefixed with your hook's name |
+
+Hooks have no sub-config section, so there is **no** `ctx.config` / `ctx.presetConfig` on a hook's ctx — those two fields exist only on preset nodes, which carry their own config.
 
 ### `ctx.utils`
 
@@ -126,10 +133,12 @@ Context via environment variables:
 
 | Variable | Content |
 |----------|---------|
-| `HTP_STAGE` | stage name |
-| `HTP_POST_SOURCE` | e.g. `_posts/my-post.md` (empty on `string` stages) |
-| `HTP_POST_PATH` | the post/page output path |
-| `HTP_POST_TITLE` | the post title |
+| `HTP_STAGE` | stage name (always set) |
+| `HTP_SLOT` | `early` / `late` (always set) |
+| `HTP_POST_SOURCE` | **`post` stages only**: e.g. `_posts/my-post.md` |
+| `HTP_POST_PATH` | **`post` stages only**: the post/page output path |
+| `HTP_POST_TITLE` | **`post` stages only**: the post title |
+| `HTP_FILE_PATH` | **`string` stages only**: the output file path |
 
 ```python
 #!/usr/bin/env python3

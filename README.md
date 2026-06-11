@@ -41,7 +41,7 @@ hooks:
     stage: after_render:html
 ```
 
-**2. External command** — content on stdin, transformed content on stdout. Any language. Context via env vars `HTP_STAGE` / `HTP_POST_SOURCE` / `HTP_POST_PATH` / `HTP_POST_TITLE`.
+**2. External command** — content on stdin, transformed content on stdout. Any language. Context via env vars: `HTP_STAGE` / `HTP_SLOT` always; `HTP_POST_SOURCE` / `HTP_POST_PATH` / `HTP_POST_TITLE` on post stages, `HTP_FILE_PATH` on string stages.
 
 ```yaml
 hooks:
@@ -65,7 +65,7 @@ hexo.textPipeline.register({
 });
 ```
 
-`ctx` is `{ hexo, post, stage, config, presetConfig, pluginConfig, utils, log }`; `ctx.utils` ships `replaceOutsideCode` / `segmentInlineCode` for safely skipping code blocks in the markdown stage.
+Registration shares the same defaults and validation as hooks (slot defaults to `late`, `match` regex pre-checks work too). `ctx` is `{ hexo, stage, pluginConfig, utils, log }`, plus `ctx.post` on post stages / `ctx.file` on string stages; `ctx.utils` ships `replaceOutsideCode` / `segmentInlineCode` for safely skipping code blocks in the markdown stage.
 
 ### Execution order: two slots per stage
 

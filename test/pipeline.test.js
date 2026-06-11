@@ -164,6 +164,129 @@ test('hexo.textPipeline.register adds a node at runtime', () => {
   assert.equal(typeof ctx.hexo.textPipeline.utils.replaceOutsideCode, 'function');
 });
 
+// ---- 统一契约：三条注册路径同一套默认值与校验（node-contract）----
+
+test('register defaults match config hooks: slot late, stage before_post_render', () => {
+  const ctx = createHexoMock({ config: { text_pipeline: {} } });
+  plugin(ctx.hexo);
+
+  const node = ctx.hexo.textPipeline.register({ name: 'n', convert: (t) => t });
+  assert.equal(node.stage, 'before_post_render');
+  assert.equal(node.slot, 'late');
+  assert.deepEqual(
+    ctx.hexo._textPipeline.registry.forStage('before_post_render', 'late').map((n) => n.name),
+    ['n']
+  );
+});
+
+test('register validates slot, priority and match like the config path', () => {
+  const ctx = createHexoMock({ config: { text_pipeline: {} } });
+  plugin(ctx.hexo);
+  const api = ctx.hexo.textPipeline;
+
+  assert.throws(() => api.register({ name: 'a', convert: (t) => t, slot: 'middle' }), /invalid slot/);
+  assert.throws(() => api.register({ name: 'b', convert: (t) => t, priority: 'high' }), /priority must be a number/);
+  assert.throws(() => api.register({ name: 'c', convert: (t) => t, match: '(' }), /invalid match regex/);
+});
+
+test('register accepts match as the declarative form of test, same as hooks', () => {
+  const ctx = createHexoMock({ config: { text_pipeline: {} } });
+  plugin(ctx.hexo);
+
+  let calls = 0;
+  ctx.hexo.textPipeline.register({
+    name: 'gated',
+    match: 'NEEDLE',
+    convert(text) {
+      calls += 1;
+      return text + '!';
+    }
+  });
+
+  const handler = ctx.handlers.get('before_post_render');
+  assert.equal(handler({ content: 'plain' }).content, 'plain');
+  assert.equal(calls, 0);
+  assert.equal(handler({ content: 'has NEEDLE' }).content, 'has NEEDLE!');
+});
+
+test('register warns on duplicate names, same rule as the startup check', () => {
+  const ctx = createHexoMock({ config: { text_pipeline: {} } });
+  plugin(ctx.hexo);
+
+  ctx.hexo.textPipeline.register({ name: 'dup', convert: (t) => t });
+  ctx.hexo.textPipeline.register({ name: 'dup', convert: (t) => t });
+  assert.ok(ctx.warnings.some((w) => w.includes('duplicate node name "dup"')));
+});
+
+test('invalid slot in preset node config is reported, not silently ignored', () => {
+  const ctx = createHexoMock({
+    config: {
+      text_pipeline: { presets: [{ name: 'obsidian', config: { comment: { slot: 'middle' } } }] }
+    }
+  });
+  plugin(ctx.hexo);
+
+  assert.ok(
+    ctx.hexo._textPipeline.issues.some(
+      (i) => i.level === 'error' && i.message.includes('obsidian:comment') && i.message.includes('invalid slot')
+    )
+  );
+});
+
+// ---- ctx 形状：post/file 按 stage 类型分流，hook 不再拿到恒空的 config ----
+
+test('post stages give hooks ctx.post; no empty config/presetConfig leak', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'htp-ctx-'));
+  try {
+    fs.writeFileSync(
+      path.join(dir, 'probe.js'),
+      'module.exports = (t, ctx) => [("post" in ctx), ("file" in ctx), ("config" in ctx), ("presetConfig" in ctx), ctx.post.title].join("|");'
+    );
+    const ctx = createHexoMock({
+      config: { text_pipeline: { hooks: [{ script: 'probe.js' }] } },
+      baseDir: dir
+    });
+    plugin(ctx.hexo);
+
+    const result = ctx.handlers.get('before_post_render')({ content: 'x', title: 'T' }).content;
+    assert.equal(result, 'true|false|false|false|T');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('string stages expose ctx.file instead of ctx.post', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'htp-ctxf-'));
+  try {
+    fs.writeFileSync(
+      path.join(dir, 'probe.js'),
+      'module.exports = (t, ctx) => [("post" in ctx), ctx.file.path].join("|");'
+    );
+    const ctx = createHexoMock({
+      config: { text_pipeline: { hooks: [{ script: 'probe.js', stage: 'after_render:html' }] } },
+      baseDir: dir
+    });
+    plugin(ctx.hexo);
+
+    const result = ctx.handlers.get('after_render:html')('<html></html>', { path: 'index.html' });
+    assert.equal(result, 'false|index.html');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('command hook env mirrors ctx: HTP_SLOT always, HTP_FILE_PATH on string stages, no HTP_POST_* there', () => {
+  const envCommand =
+    'node -e "process.stdout.write([process.env.HTP_SLOT, process.env.HTP_FILE_PATH, String(process.env.HTP_POST_TITLE === undefined)].join(\'|\'))"';
+  const ctx = createHexoMock({
+    config: { text_pipeline: { hooks: [{ command: envCommand, stage: 'after_render:html' }] } }
+  });
+  plugin(ctx.hexo);
+
+  const result = ctx.handlers.get('after_render:html')('x', { path: 'a/index.html' });
+  assert.equal(result, 'late|a/index.html|true');
+});
+
 // ---- checker：静态 ----
 
 test('static checker flags unknown config keys with suggestions', () => {

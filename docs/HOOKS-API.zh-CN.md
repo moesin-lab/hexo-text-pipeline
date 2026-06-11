@@ -30,6 +30,11 @@
 - `slot: late`（hook 的默认值）——在 Hexo 内置 filter 和其他插件**之后**运行。在 `before_post_render` 上意味着：preset node 已经跑完，围栏代码块已被高亮器吞成 `<hexoPostRenderCodeBlock>` 占位符——你不可能误伤代码，看到的就是真正要渲染的内容。
 - `slot: early`——抢在所有人**之前**，拿原始文本。需要完整围栏代码块、原始 `%%注释%%` 等时选它。
 
+挂点的实质：插件为每个 stage 注册了**两个独立的 Hexo filter**——early 的优先级低于 Hexo 内置 filter，late 的高于它们。两个推论：
+
+- `priority` 只在**同一挂点内部**排序，永远不跨挂点——early 里 priority 100 的 node 也排在 late 里 priority 1 的之前；
+- Hexo 内置 filter 和其他插件在两个挂点**之间**运行，它们不归本插件管，`hexo pipeline` 的顺序表里也不会出现。
+
 `before_post_render` **early** 挂点的输入实例（tap 抓取的真实样本）：
 
 ```markdown
@@ -81,13 +86,15 @@ module.exports = function (text, ctx) {
 
 | 字段 | 内容 |
 |------|------|
-| `ctx.post` | post 对象（`post` 类 stage）或 `{ path }`（`string` 类 stage）——可读 `ctx.post.title`、`ctx.post.source`、frontmatter 字段 |
+| `ctx.post` | **仅 `post` 类 stage**（`before/after_post_render`）：post 对象——可读 `ctx.post.title`、`ctx.post.source`、frontmatter 字段 |
+| `ctx.file` | **仅 `string` 类 stage**（`after_render:*`）：输出文件的 `{ path }` |
 | `ctx.stage` | 当前 stage 名（一个脚本可以服务多个 stage） |
 | `ctx.hexo` | 运行中的 Hexo 实例（`ctx.hexo.config`、`ctx.hexo.locals.get('posts')`…） |
-| `ctx.config` | hook 没有子配置节，恒为 `{}`（preset node 在这里拿自己的子配置） |
 | `ctx.pluginConfig` | 归一化后的 `text_pipeline` 配置 |
 | `ctx.utils` | 工具函数，见下 |
 | `ctx.log` | `ctx.log.warn(msg)` / `ctx.log.debug(msg)`，自动带 hook 名前缀 |
+
+hook 没有子配置节，所以 hook 的 ctx 上**没有** `ctx.config` / `ctx.presetConfig`——这两个字段只出现在自带配置的 preset node 上。
 
 ### `ctx.utils`
 
@@ -126,10 +133,12 @@ hooks:
 
 | 变量 | 内容 |
 |------|------|
-| `HTP_STAGE` | stage 名 |
-| `HTP_POST_SOURCE` | 如 `_posts/my-post.md`（`string` 类 stage 为空） |
-| `HTP_POST_PATH` | 文章/页面的输出路径 |
-| `HTP_POST_TITLE` | 文章标题 |
+| `HTP_STAGE` | stage 名（恒有） |
+| `HTP_SLOT` | `early` / `late`（恒有） |
+| `HTP_POST_SOURCE` | **仅 `post` 类 stage**：如 `_posts/my-post.md` |
+| `HTP_POST_PATH` | **仅 `post` 类 stage**：文章/页面的输出路径 |
+| `HTP_POST_TITLE` | **仅 `post` 类 stage**：文章标题 |
+| `HTP_FILE_PATH` | **仅 `string` 类 stage**：输出文件路径 |
 
 ```python
 #!/usr/bin/env python3
