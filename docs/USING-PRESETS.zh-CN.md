@@ -43,7 +43,7 @@ hexo pipeline
 
 完整条目形态是 `{ name, config }`。`config` 里的键按含义分两层：
 
-- **与某个 node 短名同名的键**（`callout`、`mermaid` 等）是该 node 的子配置。三个保留键控制挂载——`enable`、`slot`、`priority`——其余原样进 node 的 `ctx.config`。
+- **与某个 node 短名同名的键**（`callout`、`mermaid` 等）是该 node 的子配置。四个键由 engine 解释——`enable`、`slot`、`priority` 控制挂载，`css`（样式文件路径或列表，相对 Hexo 根目录）用你的样式**整体替换**该 node 的默认样式——其余原样进 node 的 `ctx.config`。
 - **其他所有键**是 preset 级配置，所有 node 都能通过 `ctx.presetConfig` 拿到（如 obsidian 的 `domain_prefix`）。
 
 ```yaml
@@ -52,7 +52,9 @@ text_pipeline:
     - name: obsidian
       config:
         domain_prefix: ''                        # preset 级 → ctx.presetConfig
-        callout: { enable: true }                # node 级：按需打开
+        callout:
+          enable: true                           # node 级：按需打开
+          css: ./source/css/my-callout.css       # 用自己的样式整体替换内置 callout 样式
         embed: { asset_prefix: /images }         # node 级子配置 → ctx.config
         mermaid: { theme: dark, priority: 15 }   # 子配置 + 挂载覆盖
 ```

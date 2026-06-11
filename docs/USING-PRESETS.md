@@ -43,7 +43,7 @@ Bare names try built-ins first, then npm. A preset that fails to load is reporte
 
 The full entry form is `{ name, config }`. Inside `config`, keys are split by meaning:
 
-- **A key matching a node's short name** (`callout`, `mermaid`, …) is that node's sub-config. Three keys are reserved for placement — `enable`, `slot`, `priority` — everything else reaches the node as `ctx.config`.
+- **A key matching a node's short name** (`callout`, `mermaid`, …) is that node's sub-config. Four keys are interpreted by the engine — `enable`, `slot`, `priority` for placement, and `css` (a stylesheet path or list, relative to the Hexo root) which **replaces** the node's default styles — everything else reaches the node as `ctx.config`.
 - **Every other key** is preset-wide config, reaching all nodes as `ctx.presetConfig` (e.g. `domain_prefix` in the obsidian preset).
 
 ```yaml
@@ -52,7 +52,9 @@ text_pipeline:
     - name: obsidian
       config:
         domain_prefix: ''                        # preset-wide → ctx.presetConfig
-        callout: { enable: true }                # node-level: opt in
+        callout:
+          enable: true                           # node-level: opt in
+          css: ./source/css/my-callout.css       # replaces the built-in callout styles
         embed: { asset_prefix: /images }         # node-level sub-config → ctx.config
         mermaid: { theme: dark, priority: 15 }   # sub-config + placement override
 ```

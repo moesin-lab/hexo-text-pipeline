@@ -80,6 +80,41 @@ test('injects preset css/js, unless inject_css / inject_js are false', () => {
   assert.equal(noAssets.injected.length, 0);
 });
 
+test('per-node css file replaces the default styles', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tp-css-'));
+  fs.writeFileSync(path.join(baseDir, 'custom.css'), '.callout{--callout-color:1,2,3}');
+
+  const replaced = createHexoMock({
+    baseDir,
+    config: {
+      text_pipeline: {
+        presets: [{ name: 'obsidian', config: { callout: { enable: true, css: './custom.css' } } }]
+      }
+    }
+  });
+  plugin(replaced.hexo);
+  const styles = replaced.injected.filter((item) => item.entry === 'head_end' && item.value.includes('.callout'));
+  assert.equal(styles.length, 1);
+  assert.ok(styles[0].value.includes('1,2,3')); // 只剩用户样式
+  assert.ok(!styles[0].value.includes('68,138,255')); // 默认色板被替换
+
+  const missing = createHexoMock({
+    baseDir,
+    config: {
+      text_pipeline: {
+        presets: [{ name: 'obsidian', config: { callout: { enable: true, css: './nope.css' } } }]
+      }
+    }
+  });
+  plugin(missing.hexo); // 不抛
+  assert.ok(missing.warnings.some((message) => message.includes('css file not readable')));
+
+  fs.rmSync(baseDir, { recursive: true, force: true });
+});
+
 test('auto-registers when loaded with a global hexo context', () => {
   const ctx = createHexoMock({
     config: { text_pipeline: { presets: ['obsidian'] } },

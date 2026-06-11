@@ -74,6 +74,7 @@ text_pipeline:
     ruby:
       slot: early
       priority: 5
+      css: ./ruby.css          # 用自己的样式文件整体替换插件默认的 `css`
       dict: ./ruby.json        # 其余键随整个子对象进 ctx.config
 ```
 

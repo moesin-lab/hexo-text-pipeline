@@ -144,7 +144,9 @@ text_pipeline:
     - name: obsidian
       config:
         domain_prefix: ''                  # link prefix for wikilink/mdlink/embed
-        callout: { enable: true }          # opt in
+        callout:
+          enable: true                     # opt in
+          css: ./source/css/callout.css    # optional: replace the built-in styles with your own file(s)
         embed: { asset_prefix: /images }   # prepended to embedded image paths
         mermaid: { theme: dark, priority: 15 }   # any node: sub-config + priority override
 ```
@@ -162,7 +164,7 @@ text_pipeline:
   enable: true       # master switch
   debug: false       # verbose logging
   strict: false      # config errors / node failures fail the build (CI)
-  inject_css: true   # nodes' default styles (e.g. callout)
+  inject_css: true   # nodes' default styles (e.g. callout); per-node `css: <file|list>` swaps in your own
   inject_js: true    # nodes' frontend scripts (e.g. mermaid loader)
   presets: []        # built-in name | npm package | ./local/path | { name, config }
   hooks: []          # { script | command, stage, slot, priority, name, timeout, match, enable }

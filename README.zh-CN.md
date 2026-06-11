@@ -144,7 +144,9 @@ text_pipeline:
     - name: obsidian
       config:
         domain_prefix: ''                  # wikilink/mdlink/embed 的链接前缀
-        callout: { enable: true }          # 按需打开
+        callout:
+          enable: true                     # 按需打开
+          css: ./source/css/callout.css    # 可选：用自己的样式文件整体替换内置样式
         embed: { asset_prefix: /images }   # 嵌入图片路径的前缀
         mermaid: { theme: dark, priority: 15 }   # 任意 node：子配置 + priority 覆盖
 ```
@@ -162,7 +164,7 @@ text_pipeline:
   enable: true       # 总开关
   debug: false       # 详细日志
   strict: false      # 配置错误 / 节点失败让构建失败（CI 用）
-  inject_css: true   # node 的默认样式（如 callout）
+  inject_css: true   # node 的默认样式（如 callout）；node 子配置 css: <文件|列表> 可换成自己的
   inject_js: true    # node 的前端脚本（如 mermaid 加载器）
   presets: []        # 内置名 | npm 包 | ./本地路径 | { name, config }
   hooks: []          # { script | command, stage, slot, priority, name, timeout, match, enable }

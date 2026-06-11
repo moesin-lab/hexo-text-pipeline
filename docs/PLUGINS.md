@@ -74,6 +74,7 @@ text_pipeline:
     ruby:
       slot: early
       priority: 5
+      css: ./ruby.css          # replaces the plugin's default `css` with your own file(s)
       dict: ./ruby.json        # remaining keys reach the plugin as ctx.config
 ```
 
